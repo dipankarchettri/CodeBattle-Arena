@@ -131,7 +131,7 @@ Your application should now be running!
 
 The project is organized as a monorepo with three main directories:
 
-`client/         # React frontend application (Vite, Shadcn)    \
+`client/         # React frontend application (Vite, Shadcn)\
 server/         # Express.js backend API (Node.js, Drizzle)  \
 shared/         # Shared code, primarily the Drizzle database schema \
 .env            # Local environment secrets (DO NOT COMMIT)  \
