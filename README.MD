@@ -139,13 +139,9 @@ The project is organized as a monorepo with three main directories:
 
 🗺️ Future Roadmap
 ------------------
-
-*   \[ \] **Admin Panel:** A dedicated interface for creating, editing, and managing problems and events.
-    
-*   \[ \] **JavaScript Judge:** Implement the executeJavaScript function to support JS submissions.
     
 *   \[ \] **Contest Mode:** A special mode with time limits, a private leaderboard, and restricted problem access.
     
 *   \[ \] **Team Competitions:** Allow users to form teams and compete together.
     
-*   \[ \] **Deployment:** Add Dockerfile for backend and instructions for deploying to a VPS or a service like Fly.io.
+
