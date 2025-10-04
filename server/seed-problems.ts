@@ -33,6 +33,16 @@ You can return the answer in any order.`,
       "-10⁹ ≤ target ≤ 10⁹",
       "Only one valid answer exists",
     ],
+    boilerplatePython: `def solve(nums, target):
+  # NOTE: The judge will read from stdin, call this function, and print the result.
+  # You only need to implement the logic inside this function.
+  pass
+`,
+    boilerplateJavascript: `function solve(nums, target) {
+  // NOTE: The judge will read from stdin, call this function, and print the result.
+  // You only need to implement the logic inside this function.
+}
+`,
   },
   {
     title: "Fibonacci Numbers",
@@ -61,6 +71,14 @@ Given n, calculate F(n).`,
       },
     ],
     constraints: ["0 ≤ n ≤ 30"],
+    boilerplatePython: `def solve(n):
+  # Your solution goes here
+  pass
+`,
+    boilerplateJavascript: `function solve(n) {
+  // Your solution goes here
+}
+`,
   },
   {
     title: "Valid Parentheses",
@@ -74,11 +92,11 @@ An input string is valid if:
     timeLimit: 1000,
     memoryLimit: 256,
     testCases: [
-      { input: "()", expectedOutput: "true" },
-      { input: "()[]{}", expectedOutput: "true" },
-      { input: "(]", expectedOutput: "false" },
-      { input: "([)]", expectedOutput: "false" },
-      { input: "{[]}", expectedOutput: "true" },
+      { input: "'()'", expectedOutput: "true" },
+      { input: "'()[]{}'", expectedOutput: "true" },
+      { input: "'(]'", expectedOutput: "false" },
+      { input: "'([)]'", expectedOutput: "false" },
+      { input: "'{[]}'", expectedOutput: "true" },
     ],
     exampleCases: [
       {
@@ -95,6 +113,14 @@ An input string is valid if:
       },
     ],
     constraints: ["1 ≤ s.length ≤ 10⁴", "s consists of parentheses only '()[]{}'"],
+    boilerplatePython: `def solve(s):
+  # Your solution goes here
+  pass
+`,
+    boilerplateJavascript: `function solve(s) {
+  // Your solution goes here
+}
+`,
   },
   {
     title: "Reverse String",
@@ -119,6 +145,18 @@ You must do this by modifying the input array in-place with O(1) extra memory.`,
       },
     ],
     constraints: ["1 ≤ s.length ≤ 10⁵", "s[i] is a printable ascii character"],
+    boilerplatePython: `def solve(s):
+  # Your solution goes here
+  # Modify s in-place. The function should not return anything.
+  # The judge will print the modified s.
+  pass
+`,
+    boilerplateJavascript: `function solve(s) {
+  // Your solution goes here
+  // Modify s in-place. The function should not return anything.
+  // The judge will print the modified s.
+}
+`,
   },
   {
     title: "Binary Search",
@@ -150,6 +188,14 @@ You must write an algorithm with O(log n) runtime complexity.`,
       "All the integers in nums are unique",
       "nums is sorted in ascending order",
     ],
+    boilerplatePython: `def solve(nums, target):
+  # Your solution goes here
+  pass
+`,
+    boilerplateJavascript: `function solve(nums, target) {
+  // Your solution goes here
+}
+`,
   },
   {
     title: "Longest Substring Without Repeating Characters",
@@ -158,10 +204,10 @@ You must write an algorithm with O(log n) runtime complexity.`,
     timeLimit: 2000,
     memoryLimit: 256,
     testCases: [
-      { input: "abcabcbb", expectedOutput: "3" },
-      { input: "bbbbb", expectedOutput: "1" },
-      { input: "pwwkew", expectedOutput: "3" },
-      { input: "", expectedOutput: "0" },
+      { input: "'abcabcbb'", expectedOutput: "3" },
+      { input: "'bbbbb'", expectedOutput: "1" },
+      { input: "'pwwkew'", expectedOutput: "3" },
+      { input: "''", expectedOutput: "0" },
     ],
     exampleCases: [
       {
@@ -181,12 +227,26 @@ You must write an algorithm with O(log n) runtime complexity.`,
       },
     ],
     constraints: ["0 ≤ s.length ≤ 5 * 10⁴", "s consists of English letters, digits, symbols and spaces"],
+    boilerplatePython: `def solve(s):
+  # Your solution goes here
+  pass
+`,
+    boilerplateJavascript: `function solve(s) {
+  # Your solution goes here
+}
+`,
   },
 ];
 
 export async function seedProblems() {
+  // Check if problems already exist to prevent re-seeding on every server restart.
+  const problemCount = await storage.getProblemCount();
+  if (problemCount > 0) {
+    console.log("Problems already exist in the database. Skipping seeding.");
+    return;
+  }
+
   console.log("Seeding problems...");
-  
   for (const problem of sampleProblems) {
     try {
       const created = await storage.createProblem(problem);
@@ -195,6 +255,6 @@ export async function seedProblems() {
       console.error(`Error creating problem ${problem.title}:`, error);
     }
   }
-  
   console.log("Problems seeded successfully!");
 }
+

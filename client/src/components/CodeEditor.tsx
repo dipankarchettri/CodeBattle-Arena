@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import Editor, { OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
@@ -12,51 +12,33 @@ import type { Submission } from "@shared/schema";
 type Language = "python" | "javascript";
 type SubmissionStatus = "pending" | "correct" | "incorrect" | "error" | null;
 
-// ✅ New, more instructive boilerplate
-const pythonBoilerplate = `def solve(nums, target):
-  # NOTE: The judge will read from stdin, call this function, and print the result.
-  # You only need to implement the logic inside this function.
-  
-  # Example for "Two Sum"
-  num_to_index = {}
-  for i, num in enumerate(nums):
-    complement = target - num
-    if complement in num_to_index:
-      return [num_to_index[complement], i]
-    num_to_index[num] = i
-  
-  return []
-`;
-
-const javascriptBoilerplate = `function solve(nums, target) {
-  // NOTE: The judge will read from stdin, call this function, and print the result.
-  // You only need to implement the logic inside this function.
-
-  // Example for "Two Sum"
-  const numToIndex = new Map();
-  for (let i = 0; i < nums.length; i++) {
-    const complement = target - nums[i];
-    if (numToIndex.has(complement)) {
-      return [numToIndex.get(complement), i];
-    }
-    numToIndex.set(nums[i], i);
-  }
-  return [];
-}
-`;
-
+// ✅ THIS IS THE FIX ✅
+// The interface now correctly includes the optional boilerplate props.
 interface CodeEditorProps {
   problemId: string;
   isLocked: boolean;
+  boilerplatePython?: string;
+  boilerplateJavascript?: string;
 }
 
-export default function CodeEditor({ problemId, isLocked }: CodeEditorProps) {
+export default function CodeEditor({
+  problemId,
+  isLocked,
+  boilerplatePython,
+  boilerplateJavascript,
+}: CodeEditorProps) {
   const [language, setLanguage] = useState<Language>("python");
-  const [code, setCode] = useState(pythonBoilerplate);
+  const [code, setCode] = useState("");
   const [status, setStatus] = useState<SubmissionStatus>(null);
   const [output, setOutput] = useState("");
   const { toast } = useToast();
   const editorRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (boilerplatePython) {
+      setCode(boilerplatePython);
+    }
+  }, [boilerplatePython]);
 
   const handleEditorDidMount: OnMount = (editor, _monaco) => {
     editorRef.current = editor;
@@ -72,26 +54,25 @@ export default function CodeEditor({ problemId, isLocked }: CodeEditorProps) {
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      const submissionData = { problemId, code, language };
-      console.log("Attempting to submit:", submissionData); 
-      const response = await apiRequest("POST", "/api/submissions", submissionData);
-      console.log("Raw response status:", response.status, response.statusText);
+      const response = await apiRequest("POST", "/api/submissions", {
+        problemId,
+        code,
+        language,
+      });
+
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ 
-          message: `Request failed with status ${response.status}` 
+        const errorData = await response.json().catch(() => ({
+          message: `Request failed with status ${response.status}`
         }));
-        console.error("Parsed error response:", errorData);
         throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
       }
-      const data = await response.json();
-      console.log("Successful submission response from backend:", data);
-      return data;
+      return await response.json();
     },
     onSuccess: (data: Submission) => {
       setStatus(data.status as SubmissionStatus);
-      setOutput(data.output || "Execution finished without output."); 
+      setOutput(data.output || "Execution finished without output.");
       queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
-      
+
       if (data.status === "correct") {
         toast({ title: "Accepted!", description: `Execution time: ${data.executionTime}ms` });
       } else if (data.status === "incorrect") {
@@ -101,7 +82,7 @@ export default function CodeEditor({ problemId, isLocked }: CodeEditorProps) {
       }
     },
     onError: (error: Error) => {
-      console.error("--- DETAILED SUBMISSION ERROR (onError) ---", error); 
+      console.error("Detailed Submission Error:", error);
       setStatus("error");
       setOutput(`Submission failed. Check the browser's developer console (F12) for details.\n\nMessage: ${error.message}`);
       toast({ title: "Submission Error", description: error.message, variant: "destructive" });
@@ -110,14 +91,22 @@ export default function CodeEditor({ problemId, isLocked }: CodeEditorProps) {
 
   const handleLanguageChange = (value: Language) => {
     setLanguage(value);
-    setCode(value === "javascript" ? javascriptBoilerplate : pythonBoilerplate);
+    if (value === "javascript" && boilerplateJavascript) {
+      setCode(boilerplateJavascript);
+    } else if (value === "python" && boilerplatePython) {
+      setCode(boilerplatePython);
+    }
     setStatus(null);
     setOutput("");
   };
 
   const handleSubmit = () => {
     if (isLocked) {
-      toast({ title: "Submission Locked", description: "You have exceeded the maximum number of tab switches.", variant: "destructive" });
+      toast({
+        title: "Submission Locked",
+        description: "You have exceeded the maximum number of tab switches.",
+        variant: "destructive",
+      });
       return;
     }
     
@@ -133,10 +122,13 @@ export default function CodeEditor({ problemId, isLocked }: CodeEditorProps) {
     return null;
   };
 
+  if (!boilerplatePython) {
+    return <div className="p-4">Loading Editor...</div>;
+  }
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-border">
-        {/* ... (rest of the JSX is the same) ... */}
         <div className="flex items-center gap-4">
           <Select value={language} onValueChange={handleLanguageChange}>
             <SelectTrigger className="w-[180px]" data-testid="select-language">

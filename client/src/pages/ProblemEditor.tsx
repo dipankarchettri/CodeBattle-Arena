@@ -2,10 +2,9 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-// ✅ THE FIX: 'queryClient' has been removed from this import.
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation} from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient  } from "@/lib/queryClient";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -23,6 +22,8 @@ const formSchema = z.object({
   memoryLimit: z.coerce.number().int().positive("Memory limit must be a positive number."),
   testCases: z.string().refine(val => { try { JSON.parse(val); return true; } catch { return false; } }, "Must be a valid JSON array."),
   exampleCases: z.string().refine(val => { try { JSON.parse(val); return true; } catch { return false; } }, "Must be a valid JSON array."),
+  boilerplatePython: z.string().min(1, "Python boilerplate is required."),
+  boilerplateJavascript: z.string().min(1, "JavaScript boilerplate is required."),
   constraints: z.string().transform(val => val.split('\n').filter(Boolean)),
 });
 
@@ -59,6 +60,8 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
       testCases: '[]',
       exampleCases: '[]',
       constraints: "",
+      boilerplatePython: "",
+      boilerplateJavascript: "",
     },
   });
 
@@ -73,6 +76,8 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
         testCases: JSON.stringify(problemData.testCases, null, 2),
         exampleCases: JSON.stringify(problemData.exampleCases, null, 2),
         constraints: problemData.constraints.join('\n'),
+        boilerplatePython: problemData.boilerplatePython || "",
+        boilerplateJavascript: problemData.boilerplateJavascript || "",
       });
     }
   }, [problemData, isEditing, form]);
@@ -93,17 +98,24 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
     }
   });
 
-  // The 'values' object passed here has already been validated and transformed by zodResolver.
-  // We type it with the schema's OUTPUT type.
+  // ✅ THIS IS THE FIX ✅
+  // The 'values' object passed here has ALREADY been transformed by the zodResolver.
+  // We type it with the schema's OUTPUT type, where `constraints` is `string[]`.
   function onSubmit(values: ProblemFormOutputValues) {
-    // We no longer need to call formSchema.parse() here.
-    // We just need to parse the JSON strings, as they are not transformed.
-    const finalData = {
-      ...values, // `values.constraints` is already a string[]
-      testCases: JSON.parse((values as any).testCases),
-      exampleCases: JSON.parse((values as any).exampleCases),
-    };
-    mutation.mutate(finalData);
+    try {
+      // We no longer need to call `formSchema.parse()`. The `values` are already correct.
+      // We just need to parse the JSON fields, which are not transformed by Zod.
+      const finalData = {
+        ...values,
+        testCases: JSON.parse((values as any).testCases),
+        exampleCases: JSON.parse((values as any).exampleCases),
+      };
+      
+      mutation.mutate(finalData);
+    } catch (error) {
+      console.error("JSON parsing error on submit:", error);
+      toast({ title: "Form Error", description: "The Test Cases or Example Cases fields contain invalid JSON.", variant: "destructive" });
+    }
   }
 
   if (isLoadingProblem) return <div className="text-center p-8">Loading problem data...</div>;
@@ -113,7 +125,6 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
       <h1 className="text-3xl font-bold mb-6">{isEditing ? "Edit Problem" : "Create New Problem"}</h1>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          {/* ... (The rest of your JSX form fields remain the same) ... */}
           <FormField control={form.control} name="title" render={({ field }) => (
             <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
           )} />
@@ -122,6 +133,7 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
           )} />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <FormField control={form.control} name="difficulty" render={({ field }) => (
+              // ✅ Fixed typo: `onValue-Change` to `onValueChange`
               <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="timeLimit" render={({ field }) => (
@@ -140,6 +152,26 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
           <FormField control={form.control} name="testCases" render={({ field }) => (
             <FormItem><FormLabel>Test Cases (JSON Array)</FormLabel><FormControl><Textarea rows={8} {...field} placeholder='[{"input": "[2,7,11,15]\\n9", "expectedOutput": "[0,1]"}]' /></FormControl><FormMessage /></FormItem>
           )} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <FormField control={form.control} name="boilerplatePython" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Python Boilerplate</FormLabel>
+                <FormControl>
+                  <Textarea rows={8} {...field} className="font-mono" placeholder={`def solve(arg1, arg2):\n  # Your logic here\n  pass`} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="boilerplateJavascript" render={({ field }) => (
+              <FormItem>
+                <FormLabel>JavaScript Boilerplate</FormLabel>
+                <FormControl>
+                  <Textarea rows={8} {...field} className="font-mono" placeholder={`function solve(arg1, arg2) {\n  // Your logic here\n}`} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+          </div>
           <Button type="submit" disabled={mutation.isPending}>
             {mutation.isPending ? "Saving..." : (isEditing ? "Save Changes" : "Create Problem")}
           </Button>

@@ -13,7 +13,7 @@ import {
   solvedProblems,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, count } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -89,6 +89,11 @@ export class DbStorage implements IStorage {
   async createProblem(problem: InsertProblem): Promise<Problem> {
     const [newProblem] = await db.insert(problems).values(problem).returning();
     return newProblem;
+  }
+
+  async getProblemCount(): Promise<number> {
+    const [result] = await db.select({ count: count() }).from(problems);
+    return result.count;
   }
 
     // ✅ ADD THIS METHOD

@@ -22,6 +22,8 @@ export const problems = pgTable("problems", {
   testCases: jsonb("test_cases").notNull(), // array of {input: string, expectedOutput: string}
   exampleCases: jsonb("example_cases").notNull(), // array of {input: string, output: string, explanation?: string}
   constraints: text("constraints").array().notNull(),
+  boilerplatePython: text("boilerplate_python").notNull().default(''),
+  boilerplateJavascript: text("boilerplate_javascript").notNull().default(''),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
