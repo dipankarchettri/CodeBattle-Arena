@@ -3,9 +3,14 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { executeCode } from "./code-executor";
-import { insertSubmissionSchema } from "@shared/schema";
+import { insertProblemSchema, insertSubmissionSchema } from "@shared/schema";
 import { ZodError } from "zod";
+import { requireAdmin } from "./middleware/requireAdmin";
 
+/**
+ * Middleware to ensure a user is authenticated.
+ * If not, it rejects the request with a 401 Unauthorized status.
+ */
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Authentication required" });
@@ -14,10 +19,12 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Setup authentication routes
+  // Setup all authentication-related routes (/api/login, /api/register, etc.)
   setupAuth(app);
 
-  // Get all problems
+  // --- PUBLIC & USER-FACING PROBLEM ROUTES ---
+
+  // Get a list of all problems (without their secret test cases)
   app.get("/api/problems", requireAuth, async (_req, res, next) => {
     try {
       const problems = await storage.getAllProblems();
@@ -28,7 +35,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get single problem
+  // Get a single problem by ID (also without secret test cases)
   app.get("/api/problems/:id", requireAuth, async (req, res, next) => {
     try {
       const problem = await storage.getProblem(req.params.id);
@@ -40,57 +47,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- ADMIN-ONLY ROUTES ---
+
+  // Get the full data for a single problem, including test cases (for the editor)
+  app.get("/api/admin/problems/:id", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      const problem = await storage.getProblem(req.params.id);
+      if (!problem) return res.status(404).json({ message: "Problem not found" });
+      res.json(problem);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create a new problem
+  app.post("/api/problems", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      const validatedData = insertProblemSchema.parse(req.body);
+      const newProblem = await storage.createProblem(validatedData);
+      res.status(201).json(newProblem);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update an existing problem
+  app.put("/api/problems/:id", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      const updatedProblem = await storage.updateProblem(req.params.id, req.body);
+      if (!updatedProblem) return res.status(404).json({ message: "Problem not found" });
+      res.json(updatedProblem);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Delete a problem
+  app.delete("/api/problems/:id", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      await storage.deleteProblem(req.params.id);
+      res.sendStatus(204); // No Content
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // --- SUBMISSION & LEADERBOARD ROUTES ---
+
   // Submit code for a problem
   app.post("/api/submissions", requireAuth, async (req, res, next) => {
     try {
-      // ✅ CORRECTED: Combine req.body and req.user.id BEFORE validation
-      const submissionData = {
-        ...req.body,
-        userId: req.user!.id,
-      };
-
+      const submissionData = { ...req.body, userId: req.user!.id };
       const validatedData = insertSubmissionSchema.parse(submissionData);
       
       const problem = await storage.getProblem(validatedData.problemId);
       if (!problem) return res.status(404).json({ message: "Problem not found" });
 
-      // Create initial "pending" submission
+      // 1. Create the initial "pending" submission in the database.
       const submission = await storage.createSubmission(validatedData);
 
-      // --- ❌ REMOVED THE PREMATURE RESPONSE THAT CAUSED THE RACE CONDITION ---
-      // res.status(202).json(submission); // This line was the bug.
-
-      // Execute code asynchronously
-      executeCode(
-        submission.id,
-        validatedData.code,
-        validatedData.language as 'python' | 'javascript',
-        problem.testCases as Array<{ input: string; expectedOutput: string }>,
-        problem.timeLimit
-      ).then(async (result) => {
-        // Update submission with the final result
-        await storage.updateSubmissionResult(
-          submission.id,
-          result.status,
-          result.output,
-          result.executionTime
-        );
-        // If correct, mark it as solved
-        if (result.status === "correct") {
-          await storage.markProblemSolved(submission.userId, submission.problemId);
-        }
-      }).catch(error => {
-        console.error(`[Execution Error] for submission ${submission.id}:`, error);
-        // Optionally update the submission to a failed state here
-        storage.updateSubmissionResult(submission.id, 'error', 'The judge encountered a fatal error.', 0);
-      });
-
-      // ✅ --- ADDED A DELAYED RESPONSE --- ✅
-      // Respond to the user after a short delay to allow the judge to finish for simple cases,
-      // or instruct the frontend to poll for the result.
-      // For now, we send the final result back directly after execution is complete.
-      // The `executeCode` promise is now handled differently to allow this.
-      
+      // 2. Await the result from the code executor.
       const result = await executeCode(
         submission.id,
         validatedData.code,
@@ -99,6 +115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         problem.timeLimit
       );
 
+      // 3. Update the submission with the final result.
       await storage.updateSubmissionResult(
         submission.id,
         result.status,
@@ -106,12 +123,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result.executionTime
       );
 
+      // 4. If the submission was correct, mark the problem as solved for the user.
       if (result.status === "correct") {
         await storage.markProblemSolved(submission.userId, submission.problemId);
       }
 
+      // 5. Fetch the final, updated submission record.
       const updatedSubmission = await storage.getSubmission(submission.id);
-      res.status(200).json(updatedSubmission); // Respond with the FINAL result
+      
+      // 6. Respond to the client with the complete result.
+      res.status(200).json(updatedSubmission);
 
     } catch (error) {
       if (error instanceof ZodError) {
@@ -121,7 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get user's submissions
+  // Get the logged-in user's submission history
   app.get("/api/submissions", requireAuth, async (req, res, next) => {
     try {
       const userId = req.user!.id;
@@ -132,7 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get leaderboard
+  // Get the public leaderboard
   app.get("/api/leaderboard", async (_req, res, next) => {
     try {
       const leaderboard = await storage.getLeaderboard();

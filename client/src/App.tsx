@@ -12,6 +12,9 @@ import Submissions from "@/pages/Submissions";
 import SolveProblem from "@/pages/SolveProblem";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
+import AdminRoute from "@/components/AdminRoute";
+import AdminDashboard from "@/pages/AdminDashboard";
+import ProblemEditor from "@/pages/ProblemEditor";
 
 function Router() {
   return (
@@ -23,6 +26,13 @@ function Router() {
       <Route path="/solve/:id" component={SolveProblem} />
       <Route path="/login" component={Login} />
       <Route path="/register" component={Register} />
+      <Route path="/admin" nest>
+        <AdminRoute>
+          <Route path="/" component={AdminDashboard} />
+          <Route path="/problem/new" component={ProblemEditor} />
+          <Route path="/problem/:id/edit" component={ProblemEditor} />
+        </AdminRoute>
+      </Route>
       <Route component={NotFound} />
     </Switch>
   );

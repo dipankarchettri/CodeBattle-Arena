@@ -91,6 +91,17 @@ export class DbStorage implements IStorage {
     return newProblem;
   }
 
+    // ✅ ADD THIS METHOD
+  async updateProblem(id: string, problem: Partial<InsertProblem>): Promise<Problem | undefined> {
+    const [updatedProblem] = await db.update(problems).set(problem).where(eq(problems.id, id)).returning();
+    return updatedProblem;
+  }
+
+  // ✅ ADD THIS METHOD
+  async deleteProblem(id: string): Promise<void> {
+    await db.delete(problems).where(eq(problems.id, id));
+  }
+
   // Submissions
   async createSubmission(submission: InsertSubmission): Promise<Submission> {
     const [newSubmission] = await db
