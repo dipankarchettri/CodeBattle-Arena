@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { Problem } from "@shared/schema";
@@ -10,24 +10,37 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useToast } from "@/hooks/use-toast";
 
-// Type definition for the example cases array for type safety
 interface ExampleCase {
   input: string;
   output: string;
   explanation?: string;
 }
 
+// Helper function to format the remaining lockout time
+function formatTime(ms: number): string {
+  if (ms <= 0) return "00:00";
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 export default function SolveProblem({ params }: { params: { id: string } }) {
   const { id: problemId } = params;
+  const { toast } = useToast();
 
   // --- Anti-Cheating State ---
   const [infractions, setInfractions] = useState(0);
   const [showWarning, setShowWarning] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
-  const maxInfractions = 3;
+  const [lockoutEndTime, setLockoutEndTime] = useState<number | null>(null);
+  const [lockoutMessage, setLockoutMessage] = useState("");
+  const maxInfractions = 1; // Limit is now 1
+  const isOutOfFocusRef = useRef(false);
+  const lockoutDuration = 60 * 60 * 1000; // 1 hour in milliseconds
 
-  // --- Robust Data Fetching ---
   const { data: problem, isLoading, isError } = useQuery<Problem>({
     queryKey: ["/api/problems", problemId],
     queryFn: async () => {
@@ -38,31 +51,87 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
     retry: false,
   });
 
-  // --- Robust Anti-Cheating Logic ---
+  // --- On-Mount Effects ---
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden && !isLocked) {
+    // 1. Show the initial guidelines toast
+    toast({
+      title: "Competition Guidelines",
+      description: "Tab/window switching and pasting are monitored. Violations will lead to a temporary lockout from this problem.",
+      duration: 10000,
+    });
+
+    // 2. Check for an existing lockout on page load
+    const lockoutKey = `lockout_problem_${problemId}`;
+    const existingLockout = localStorage.getItem(lockoutKey);
+    if (existingLockout) {
+      const endTime = parseInt(existingLockout, 10);
+      if (endTime > Date.now()) {
+        setIsLocked(true);
+        setLockoutEndTime(endTime);
+      } else {
+        localStorage.removeItem(lockoutKey); // Clean up expired lock
+      }
+    }
+  }, [problemId, toast]);
+
+  // --- UPGRADED Anti-Cheating Logic ---
+  useEffect(() => {
+    const handleInfraction = () => {
+      if (!isLocked && !isOutOfFocusRef.current) {
+        isOutOfFocusRef.current = true;
         setInfractions(prev => {
           const newCount = prev + 1;
           setShowWarning(true);
-          if (newCount >= maxInfractions) {
+          if (newCount > maxInfractions) {
             setIsLocked(true);
+            const newLockoutEndTime = Date.now() + lockoutDuration;
+            setLockoutEndTime(newLockoutEndTime);
+            const lockoutKey = `lockout_problem_${problemId}`;
+            localStorage.setItem(lockoutKey, String(newLockoutEndTime));
           }
           return newCount;
         });
       }
     };
+
+    const handleVisibilityChange = () => { if (document.hidden) handleInfraction(); };
+    const handleBlur = () => { handleInfraction(); };
+    const handleFocus = () => { isOutOfFocusRef.current = false; };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
     };
-  }, [isLocked]);
+  }, [isLocked, problemId]);
+
+  // --- Lockout Countdown Timer Effect ---
+  useEffect(() => {
+    if (lockoutEndTime) {
+      const interval = setInterval(() => {
+        const remainingTime = lockoutEndTime - Date.now();
+        if (remainingTime > 0) {
+          setLockoutMessage(`Submission is locked. Time remaining: ${formatTime(remainingTime)}`);
+        } else {
+          setIsLocked(false);
+          setLockoutEndTime(null);
+          setInfractions(0); // Reset infractions after lockout
+          localStorage.removeItem(`lockout_problem_${problemId}`);
+          clearInterval(interval);
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [lockoutEndTime, problemId]);
 
   const handleDismissWarning = () => {
     setShowWarning(false);
   };
 
-  // --- Loading and Error States ---
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
@@ -91,7 +160,6 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
     );
   }
 
-  // Helper for difficulty badge colors
   const getDifficultyVariant = (difficulty: string): "default" | "secondary" | "destructive" => {
     switch (difficulty) {
       case "Easy": return "default";
@@ -101,13 +169,12 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
     }
   };
 
-  // --- Polished Layout & UI ---
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
       
       <AntiCheatWarning
-        isVisible={showWarning}
+        isVisible={showWarning && !isLocked}
         warningCount={infractions}
         maxWarnings={maxInfractions}
         onDismiss={handleDismissWarning}
@@ -121,14 +188,14 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
             </div>
             <h2 className="text-2xl font-bold mb-2">Submission Locked</h2>
             <p className="text-muted-foreground">
-              You have exceeded the maximum number of tab switches ({maxInfractions}). Please contact the event organizers.
+              You have exceeded the maximum number of tab switches.
             </p>
+            <p className="font-mono text-lg font-bold mt-4">{lockoutMessage}</p>
           </Card>
         </div>
       )}
 
       <div className="flex-1 grid lg:grid-cols-2 gap-0 overflow-hidden">
-        {/* Left Side: Problem Description */}
         <div className="border-r border-border">
           <ScrollArea className="h-[calc(100vh-4rem)]">
             <div className="p-8">
@@ -141,7 +208,6 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
                   Time Limit: {problem.timeLimit}ms | Memory Limit: {problem.memoryLimit}MB
                 </p>
               </div>
-
               <div className="space-y-8">
                 <div>
                   <h2 className="text-xl font-semibold mb-3">Problem Description</h2>
@@ -149,7 +215,6 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
                     {problem.description}
                   </div>
                 </div>
-
                 <div>
                   <h2 className="text-xl font-semibold mb-3">Examples</h2>
                   <div className="space-y-4">
@@ -165,7 +230,6 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <h2 className="text-xl font-semibold mb-3">Constraints</h2>
                   <ul className="list-disc list-inside space-y-2 text-muted-foreground">
@@ -178,8 +242,6 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
             </div>
           </ScrollArea>
         </div>
-
-        {/* Right Side: Code Editor */}
         <div className="h-full">
           <CodeEditor
             problemId={problem.id}

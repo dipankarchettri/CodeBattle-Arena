@@ -16,7 +16,7 @@ export default function Footer() {
             </p>
             <div className="flex gap-3">
               <a
-                href="https://github.com"
+                href="https://github.com/dipankarchettri"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-md bg-background hover-elevate flex items-center justify-center"
@@ -25,7 +25,7 @@ export default function Footer() {
                 <Github className="w-4 h-4" />
               </a>
               <a
-                href="https://linkedin.com"
+                href="https://www.linkedin.com/in/dipankarchettri/"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-md bg-background hover-elevate flex items-center justify-center"
@@ -76,8 +76,8 @@ export default function Footer() {
             <ul className="space-y-3 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
                 <Mail className="w-4 h-4 text-primary" />
-                <a href="mailto:contact@codebattle.edu" className="hover-elevate inline-block px-2 py-1 rounded-md">
-                  contact@codebattle.edu
+                <a href="mailto:dipankarchettri12345@gmail.com" className="hover-elevate inline-block px-2 py-1 rounded-md">
+                  dipankarchettri12345@gmail.com
                 </a>
               </li>
               <li>

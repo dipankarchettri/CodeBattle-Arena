@@ -15,6 +15,8 @@ import Register from "@/pages/Register";
 import AdminRoute from "@/components/AdminRoute";
 import AdminDashboard from "@/pages/AdminDashboard";
 import ProblemEditor from "@/pages/ProblemEditor";
+import AdminContestsDashboard from "@/pages/AdminContestsDashboard"; 
+import ContestEditor from "@/pages/ContestEditor"; 
 
 function Router() {
   return (
@@ -28,9 +30,16 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/admin" nest>
         <AdminRoute>
-          <Route path="/" component={AdminDashboard} />
-          <Route path="/problem/new" component={ProblemEditor} />
-          <Route path="/problem/:id/edit" component={ProblemEditor} />
+          <Switch>
+            {/* The main admin dashboard is now at the exact path "/admin" */}
+            <Route path="/" component={AdminDashboard} />
+            {/* All other admin routes now include the full "/admin" prefix. */}
+            <Route path="/contests" component={AdminContestsDashboard} />
+            <Route path="/contest/new" component={ContestEditor} />
+            <Route path="/contest/:id/edit" component={ContestEditor} />
+            <Route path="/problem/new" component={ProblemEditor} />
+            <Route path="/problem/:id/edit" component={ProblemEditor} />
+          </Switch>
         </AdminRoute>
       </Route>
       <Route component={NotFound} />

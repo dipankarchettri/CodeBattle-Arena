@@ -7,13 +7,18 @@ import {
   type Submission,
   type InsertSubmission,
   type LeaderboardEntry,
+  type Contest,
+  type InsertContest,
   users,
   problems,
   submissions,
   solvedProblems,
+  contests,
+  contestProblems,
+  contestParticipants,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, desc, sql, count } from "drizzle-orm";
+import { eq, desc, sql, count, and } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -27,6 +32,9 @@ export interface IStorage {
   getAllProblems(): Promise<Problem[]>;
   getProblem(id: string): Promise<Problem | undefined>;
   createProblem(problem: InsertProblem): Promise<Problem>;
+  getProblemCount(): Promise<number>;
+  updateProblem(id: string, problem: Partial<InsertProblem>): Promise<Problem | undefined>;
+  deleteProblem(id: string): Promise<void>;
 
   // Submissions
   createSubmission(submission: InsertSubmission): Promise<Submission>;
@@ -45,6 +53,15 @@ export interface IStorage {
 
   // Leaderboard
   getLeaderboard(): Promise<LeaderboardEntry[]>;
+
+  // ✅ NEW CONTEST METHODS
+  createContest(contest: InsertContest): Promise<Contest>;
+  getAllContests(): Promise<Contest[]>;
+  getContestById(id: string): Promise<Contest | undefined>;
+  updateContest(id: string, data: Partial<InsertContest>): Promise<Contest | undefined>;
+  deleteContest(id: string): Promise<void>;
+  addProblemsToContest(contestId: string, problemIds: string[]): Promise<void>;
+  getContestWithProblems(id: string): Promise<(Contest & { problemIds: string[] }) | undefined>;
 }
 
 export class DbStorage implements IStorage {
@@ -96,15 +113,56 @@ export class DbStorage implements IStorage {
     return result.count;
   }
 
-    // ✅ ADD THIS METHOD
   async updateProblem(id: string, problem: Partial<InsertProblem>): Promise<Problem | undefined> {
     const [updatedProblem] = await db.update(problems).set(problem).where(eq(problems.id, id)).returning();
     return updatedProblem;
   }
 
-  // ✅ ADD THIS METHOD
   async deleteProblem(id: string): Promise<void> {
     await db.delete(problems).where(eq(problems.id, id));
+  }
+
+  // ✅ NEW CONTEST METHOD IMPLEMENTATIONS
+  async createContest(contest: InsertContest): Promise<Contest> {
+    const [newContest] = await db.insert(contests).values(contest).returning();
+    return newContest;
+  }
+
+  async getAllContests(): Promise<Contest[]> {
+    return db.select().from(contests).orderBy(desc(contests.startTime));
+  }
+
+  async getContestById(id: string): Promise<Contest | undefined> {
+    const [contest] = await db.select().from(contests).where(eq(contests.id, id));
+    return contest;
+  }
+
+  async updateContest(id: string, data: Partial<InsertContest>): Promise<Contest | undefined> {
+    const [updatedContest] = await db.update(contests).set(data).where(eq(contests.id, id)).returning();
+    return updatedContest;
+  }
+
+  async deleteContest(id: string): Promise<void> {
+    await db.delete(contests).where(eq(contests.id, id));
+  }
+
+  async addProblemsToContest(contestId: string, problemIds: string[]): Promise<void> {
+    // This is a "replace all" strategy: delete existing, then insert new.
+    await db.delete(contestProblems).where(eq(contestProblems.contestId, contestId));
+    if (problemIds.length > 0) {
+      const values = problemIds.map(problemId => ({ contestId, problemId }));
+      await db.insert(contestProblems).values(values);
+    }
+  }
+
+  async getContestWithProblems(id: string): Promise<(Contest & { problemIds: string[] }) | undefined> {
+    const contest = await this.getContestById(id);
+    if (!contest) return undefined;
+
+    const problems = await db.select({ problemId: contestProblems.problemId }).from(contestProblems).where(eq(contestProblems.contestId, id));
+    const problemIds = problems.map(p => p.problemId);
+    
+    return { ...contest, problemIds };
   }
 
   // Submissions
@@ -184,3 +242,5 @@ export class DbStorage implements IStorage {
 }
 
 export const storage = new DbStorage();
+
+export { db, users };

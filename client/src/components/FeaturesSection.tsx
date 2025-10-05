@@ -1,37 +1,24 @@
 import FeatureCard from "./FeatureCard";
-import { Shield, Zap, Trophy, Lock, Code2, Users } from "lucide-react";
+// We only need the three most impactful icons now.
+import { Trophy, Zap, Shield } from "lucide-react";
 
 export default function FeaturesSection() {
+  // A curated list of the three most important features.
   const features = [
     {
-      icon: Shield,
-      title: "Secure Code Execution",
-      description: "All code runs in isolated environments with comprehensive security measures to prevent malicious activities.",
+      icon: Trophy,
+      title: "Compete for the Top Spot",
+      description: "Climb the real-time leaderboard and prove your skills against your peers in timed coding battles.",
     },
     {
       icon: Zap,
-      title: "Instant Feedback",
-      description: "Get real-time results for your submissions with immediate status updates: Correct, Incorrect, or Error.",
+      title: "Instant, Pro-Level Feedback",
+      description: "Get immediate results on your code from our secure judge, just like in major competitive programming contests.",
     },
     {
-      icon: Trophy,
-      title: "Live Leaderboard",
-      description: "Track your ranking in real-time with automatic updates based on problems solved and submission times.",
-    },
-    {
-      icon: Lock,
-      title: "Anti-Cheating System",
-      description: "Tab-switching detection and paste prevention ensure fair competition for all participants.",
-    },
-    {
-      icon: Code2,
-      title: "Multi-Language Support",
-      description: "Write solutions in Python or JavaScript with full syntax highlighting and code completion.",
-    },
-    {
-      icon: Users,
-      title: "Submission History",
-      description: "Access your complete coding journey with detailed history of all submissions and their results.",
+      icon: Shield,
+      title: "A Fair & Level Playing Field",
+      description: "Our built-in anti-cheating system ensures every competition is a true and honest test of skill.",
     },
   ];
 
@@ -39,14 +26,16 @@ export default function FeaturesSection() {
     <section className="py-20 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
+          {/* A more direct and engaging headline */}
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Everything You Need to <span className="text-primary">Excel</span>
+            An Arena Built for <span className="text-primary-brand">Champions</span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Built for competitive programmers with enterprise-grade features and a developer-first approach.
+            We provide the tools and the battlefield. You bring the skill.
           </p>
         </div>
 
+        {/* The grid layout now perfectly holds three feature cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {features.map((feature, index) => (
             <FeatureCard

@@ -2,9 +2,9 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useQuery, useMutation} from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { apiRequest, queryClient  } from "@/lib/queryClient";
+import { apiRequest , queryClient } from "@/lib/queryClient";
 
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -29,8 +29,6 @@ const formSchema = z.object({
 
 // This type represents the form's data BEFORE Zod's transformations.
 type ProblemFormValues = z.input<typeof formSchema>;
-// This type represents the form's data AFTER Zod's transformations.
-type ProblemFormOutputValues = z.output<typeof formSchema>;
 
 export default function ProblemEditor({ params }: { params: { id?: string } }) {
   const [_location, setLocation] = useLocation();
@@ -99,22 +97,25 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
   });
 
   // ✅ THIS IS THE FIX ✅
-  // The 'values' object passed here has ALREADY been transformed by the zodResolver.
-  // We type it with the schema's OUTPUT type, where `constraints` is `string[]`.
-  function onSubmit(values: ProblemFormOutputValues) {
+  // The 'values' object passed by `handleSubmit` is of the INPUT type.
+  // We type it correctly as `ProblemFormValues`.
+  function onSubmit(values: ProblemFormValues) {
     try {
-      // We no longer need to call `formSchema.parse()`. The `values` are already correct.
-      // We just need to parse the JSON fields, which are not transformed by Zod.
+      // We now run the parsing and transformation manually here.
+      // `formSchema.parse` will return an object where `constraints` is now a `string[]`.
+      const transformedData = formSchema.parse(values);
+      
       const finalData = {
-        ...values,
-        testCases: JSON.parse((values as any).testCases),
-        exampleCases: JSON.parse((values as any).exampleCases),
+        ...transformedData,
+        testCases: JSON.parse(values.testCases), // JSON strings are still strings after transform
+        exampleCases: JSON.parse(values.exampleCases),
       };
       
       mutation.mutate(finalData);
     } catch (error) {
-      console.error("JSON parsing error on submit:", error);
-      toast({ title: "Form Error", description: "The Test Cases or Example Cases fields contain invalid JSON.", variant: "destructive" });
+      // This catch block is a safeguard in case of unexpected validation errors.
+      console.error("Zod parsing error on submit:", error);
+      toast({ title: "Validation Error", description: "There was an error processing the form data.", variant: "destructive" });
     }
   }
 
@@ -133,7 +134,6 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
           )} />
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <FormField control={form.control} name="difficulty" render={({ field }) => (
-              // ✅ Fixed typo: `onValue-Change` to `onValueChange`
               <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="timeLimit" render={({ field }) => (

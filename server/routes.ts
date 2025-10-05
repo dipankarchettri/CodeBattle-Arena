@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth } from "./auth";
 import { executeCode } from "./code-executor";
-import { insertProblemSchema, insertSubmissionSchema } from "@shared/schema";
+import { insertContestSchema, insertProblemSchema, insertSubmissionSchema } from "@shared/schema";
 import { ZodError } from "zod";
 import { requireAdmin } from "./middleware/requireAdmin";
 
@@ -47,7 +47,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // --- ADMIN-ONLY ROUTES ---
+  // --- ADMIN-ONLY PROBLEM ROUTES ---
 
   // Get the full data for a single problem, including test cases (for the editor)
   app.get("/api/admin/problems/:id", requireAuth, requireAdmin, async (req, res, next) => {
@@ -91,6 +91,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
       next(error);
     }
   });
+  
+  // --- ADMIN-ONLY CONTEST ROUTES ---
+
+  // Get all contests for the admin dashboard
+  app.get("/api/contests", requireAuth, requireAdmin, async (_req, res, next) => {
+    try {
+      const allContests = await storage.getAllContests();
+      res.json(allContests);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get a single contest with its associated problem IDs (for the edit form)
+  app.get("/api/contests/:id", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      const contest = await storage.getContestWithProblems(req.params.id);
+      if (!contest) return res.status(404).json({ message: "Contest not found" });
+      res.json(contest);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Create a new contest and associate problems with it
+  app.post("/api/contests", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      const validatedData = insertContestSchema.parse(req.body.contest);
+      const newContest = await storage.createContest(validatedData);
+      
+      const problemIds = req.body.problemIds || [];
+      await storage.addProblemsToContest(newContest.id, problemIds);
+
+      res.status(201).json(newContest);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Update an existing contest
+  app.put("/api/contests/:id", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      const contestId = req.params.id;
+      // Use a partial schema to validate and coerce incoming data (like date strings)
+      const validatedData = insertContestSchema.partial().parse(req.body.contest);
+
+      const updatedContest = await storage.updateContest(contestId, validatedData);
+      if (!updatedContest) return res.status(404).json({ message: "Contest not found" });
+      
+      const problemIds = req.body.problemIds || [];
+      await storage.addProblemsToContest(contestId, problemIds);
+
+      res.json(updatedContest);
+    } catch (error) {
+      if (error instanceof ZodError) {
+        return res.status(400).json({ message: error.errors });
+      }
+      next(error);
+    }
+  });
+
+  // Delete a contest
+  app.delete("/api/contests/:id", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      await storage.deleteContest(req.params.id);
+      res.sendStatus(204); // No Content
+    } catch (error) {
+      next(error);
+    }
+  });
 
   // --- SUBMISSION & LEADERBOARD ROUTES ---
 
@@ -103,10 +173,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const problem = await storage.getProblem(validatedData.problemId);
       if (!problem) return res.status(404).json({ message: "Problem not found" });
 
-      // 1. Create the initial "pending" submission in the database.
       const submission = await storage.createSubmission(validatedData);
 
-      // 2. Await the result from the code executor.
       const result = await executeCode(
         submission.id,
         validatedData.code,
@@ -115,7 +183,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         problem.timeLimit
       );
 
-      // 3. Update the submission with the final result.
       await storage.updateSubmissionResult(
         submission.id,
         result.status,
@@ -123,17 +190,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         result.executionTime
       );
 
-      // 4. If the submission was correct, mark the problem as solved for the user.
       if (result.status === "correct") {
         await storage.markProblemSolved(submission.userId, submission.problemId);
       }
 
-      // 5. Fetch the final, updated submission record.
       const updatedSubmission = await storage.getSubmission(submission.id);
-      
-      // 6. Respond to the client with the complete result.
       res.status(200).json(updatedSubmission);
-
     } catch (error) {
       if (error instanceof ZodError) {
         return res.status(400).json({ message: error.errors });

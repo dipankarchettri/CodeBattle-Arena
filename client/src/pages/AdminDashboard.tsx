@@ -17,15 +17,20 @@ export default function AdminDashboard() {
   if (isLoading) return <div>Loading problems...</div>;
 
   return (
-    <div className="card">
+    <div className="card max-w-7xl mx-auto">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-        <Button asChild>
-          {/* This link correctly points to the 'new' problem route, nested under /admin */}
-          <Link href="/problem/new">Create New Problem</Link>
-        </Button>
+        <h1 className="text-3xl font-bold">Manage Problems</h1>
+        <div className="space-x-4">
+          <Button asChild variant="secondary">
+            {/* ✅ Link is now relative */}
+            <Link href="/contests">Manage Contests</Link>
+          </Button>
+          <Button asChild>
+            {/* ✅ Link is now relative */}
+            <Link href="/problem/new">Create New Problem</Link>
+          </Button>
+        </div>
       </div>
-
       <Table>
         <TableHeader>
           <TableRow>
@@ -41,11 +46,9 @@ export default function AdminDashboard() {
               <TableCell>{problem.difficulty}</TableCell>
               <TableCell className="space-x-2">
                 <Button variant="outline" size="sm" asChild>
-                  {/* ✅ THE FIX: The link is now relative to the nested "/admin" route. */}
-                  {/* This will correctly generate a URL like /admin/problem/some-id/edit */}
+                  {/* ✅ Link is now relative */}
                   <Link href={`/problem/${problem.id}/edit`}>Edit</Link>
                 </Button>
-                {/* Delete button can be added here with a confirmation modal */}
               </TableCell>
             </TableRow>
           ))}

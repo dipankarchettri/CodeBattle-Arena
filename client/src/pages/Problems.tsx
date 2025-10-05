@@ -6,6 +6,7 @@ import ProblemCard from "@/components/ProblemCard";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import type { Problem } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function Problems() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -13,6 +14,11 @@ export default function Problems() {
 
   const { data: problems = [], isLoading } = useQuery<Problem[]>({
     queryKey: ["/api/problems"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/problems");
+      if (!res.ok) throw new Error("Failed to fetch problems");
+      return res.json();
+    }
   });
 
   const filteredProblems = problems.filter((problem) =>
@@ -20,7 +26,7 @@ export default function Problems() {
   );
 
   const handleSolveProblem = (problemId: string) => {
-    setLocation(`/solve/${problemId}`);
+    setLocation(`/problems/${problemId}`);
   };
 
   return (
@@ -31,7 +37,7 @@ export default function Problems() {
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-4">Problem Set</h1>
           <p className="text-muted-foreground mb-6">
-            Choose a problem to solve and test your coding skills
+            Choose a problem to solve and test your coding skills.
           </p>
           
           <div className="relative max-w-md">
@@ -58,7 +64,10 @@ export default function Problems() {
                 <ProblemCard
                   key={problem.id}
                   title={problem.title}
-                  difficulty={problem.difficulty}
+                  // ✅ THIS IS THE FIX ✅
+                  // We use a type assertion to tell TypeScript that this string
+                  // is one of the specific allowed values, resolving the type error.
+                  difficulty={problem.difficulty as "Easy" | "Medium" | "Hard"}
                   description={problem.description}
                   timeLimit={`${problem.timeLimit / 1000} second${problem.timeLimit !== 1000 ? 's' : ''}`}
                   onSolve={() => handleSolveProblem(problem.id)}
@@ -77,3 +86,4 @@ export default function Problems() {
     </div>
   );
 }
+
