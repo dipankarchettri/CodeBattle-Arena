@@ -1,9 +1,11 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, useLocation } from "wouter";
+import { AnimatePresence } from "framer-motion";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/use-auth";
+
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/Home";
 import Problems from "@/pages/Problems";
@@ -15,35 +17,62 @@ import Register from "@/pages/Register";
 import AdminRoute from "@/components/AdminRoute";
 import AdminDashboard from "@/pages/AdminDashboard";
 import ProblemEditor from "@/pages/ProblemEditor";
-import AdminContestsDashboard from "@/pages/AdminContestsDashboard"; 
-import ContestEditor from "@/pages/ContestEditor"; 
+import AdminContestsDashboard from "@/pages/AdminContestsDashboard";
+import ContestEditor from "@/pages/ContestEditor";
+import ContestsPage from "@/pages/ContestsPage";
+import ContestLobby from "@/pages/ContestLobby";
+
+import FadeSlideWrapper from "@/components/FadeSlideWrapper";
 
 function Router() {
+  const [location] = useLocation();
+
   return (
-    <Switch>
-      <Route path="/" component={Home} />
-      <Route path="/problems" component={Problems} />
-      <Route path="/leaderboard" component={Leaderboard} />
-      <Route path="/submissions" component={Submissions} />
-      <Route path="/solve/:id" component={SolveProblem} />
-      <Route path="/login" component={Login} />
-      <Route path="/register" component={Register} />
-      <Route path="/admin" nest>
-        <AdminRoute>
-          <Switch>
-            {/* The main admin dashboard is now at the exact path "/admin" */}
-            <Route path="/" component={AdminDashboard} />
-            {/* All other admin routes now include the full "/admin" prefix. */}
-            <Route path="/contests" component={AdminContestsDashboard} />
-            <Route path="/contest/new" component={ContestEditor} />
-            <Route path="/contest/:id/edit" component={ContestEditor} />
-            <Route path="/problem/new" component={ProblemEditor} />
-            <Route path="/problem/:id/edit" component={ProblemEditor} />
-          </Switch>
-        </AdminRoute>
-      </Route>
-      <Route component={NotFound} />
-    </Switch>
+    <AnimatePresence mode="wait">
+      <Switch location={location} key={location}>
+        {/* Public Routes */}
+        <Route path="/" component={() => <FadeSlideWrapper><Home /></FadeSlideWrapper>} />
+        <Route path="/problems" component={() => <FadeSlideWrapper><Problems /></FadeSlideWrapper>} />
+        <Route path="/leaderboard" component={() => <FadeSlideWrapper><Leaderboard /></FadeSlideWrapper>} />
+        <Route path="/submissions" component={() => <FadeSlideWrapper><Submissions /></FadeSlideWrapper>} />
+        <Route path="/contests" component={() => <FadeSlideWrapper><ContestsPage /></FadeSlideWrapper>} />
+        <Route path="/contests/:id">
+          {(params) => <FadeSlideWrapper><ContestLobby  /></FadeSlideWrapper>}
+        </Route>
+        <Route path="/login" component={() => <FadeSlideWrapper><Login /></FadeSlideWrapper>} />
+        <Route path="/register" component={() => <FadeSlideWrapper><Register /></FadeSlideWrapper>} />
+
+        {/* ✅ THIS IS THE FIX: The path is now consistent with your links. */}
+        <Route path="/problems/:id">
+          {(params) => (
+            <FadeSlideWrapper>
+              <SolveProblem params={params} />
+            </FadeSlideWrapper>
+          )}
+        </Route>
+
+        {/* Admin Routes */}
+        <Route path="/admin" nest>
+          <AdminRoute>
+            <Switch>
+              <Route path="/" component={() => <FadeSlideWrapper><AdminDashboard /></FadeSlideWrapper>} />
+              <Route path="/contests" component={() => <FadeSlideWrapper><AdminContestsDashboard /></FadeSlideWrapper>} />
+              <Route path="/contest/new" component={() => <FadeSlideWrapper><ContestEditor params={{}} /></FadeSlideWrapper>} />
+              <Route path="/contest/:id/edit">
+                {(params) => <FadeSlideWrapper><ContestEditor params={params} /></FadeSlideWrapper>}
+              </Route>
+              <Route path="/problem/new" component={() => <FadeSlideWrapper><ProblemEditor params={{}} /></FadeSlideWrapper>} />
+              <Route path="/problem/:id/edit">
+                {(params) => <FadeSlideWrapper><ProblemEditor params={params} /></FadeSlideWrapper>}
+              </Route>
+            </Switch>
+          </AdminRoute>
+        </Route>
+
+        {/* Not Found */}
+        <Route component={() => <FadeSlideWrapper><NotFound /></FadeSlideWrapper>} />
+      </Switch>
+    </AnimatePresence>
   );
 }
 
@@ -61,3 +90,4 @@ function App() {
 }
 
 export default App;
+

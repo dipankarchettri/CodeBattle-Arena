@@ -9,6 +9,7 @@ import {
   type LeaderboardEntry,
   type Contest,
   type InsertContest,
+  type ContestLobbyData,
   users,
   problems,
   submissions,
@@ -54,7 +55,7 @@ export interface IStorage {
   // Leaderboard
   getLeaderboard(): Promise<LeaderboardEntry[]>;
 
-  // ✅ NEW CONTEST METHODS
+  // Contests
   createContest(contest: InsertContest): Promise<Contest>;
   getAllContests(): Promise<Contest[]>;
   getContestById(id: string): Promise<Contest | undefined>;
@@ -62,6 +63,8 @@ export interface IStorage {
   deleteContest(id: string): Promise<void>;
   addProblemsToContest(contestId: string, problemIds: string[]): Promise<void>;
   getContestWithProblems(id: string): Promise<(Contest & { problemIds: string[] }) | undefined>;
+  getContestLobbyData(id: string, userId: string): Promise<ContestLobbyData | undefined>;
+  registerForContest(contestId: string, userId: string): Promise<void>;
 }
 
 export class DbStorage implements IStorage {
@@ -122,7 +125,7 @@ export class DbStorage implements IStorage {
     await db.delete(problems).where(eq(problems.id, id));
   }
 
-  // ✅ NEW CONTEST METHOD IMPLEMENTATIONS
+  // Contests
   async createContest(contest: InsertContest): Promise<Contest> {
     const [newContest] = await db.insert(contests).values(contest).returning();
     return newContest;
@@ -147,7 +150,6 @@ export class DbStorage implements IStorage {
   }
 
   async addProblemsToContest(contestId: string, problemIds: string[]): Promise<void> {
-    // This is a "replace all" strategy: delete existing, then insert new.
     await db.delete(contestProblems).where(eq(contestProblems.contestId, contestId));
     if (problemIds.length > 0) {
       const values = problemIds.map(problemId => ({ contestId, problemId }));
@@ -158,43 +160,55 @@ export class DbStorage implements IStorage {
   async getContestWithProblems(id: string): Promise<(Contest & { problemIds: string[] }) | undefined> {
     const contest = await this.getContestById(id);
     if (!contest) return undefined;
-
-    const problems = await db.select({ problemId: contestProblems.problemId }).from(contestProblems).where(eq(contestProblems.contestId, id));
-    const problemIds = problems.map(p => p.problemId);
-    
+    const problemsData = await db.select({ problemId: contestProblems.problemId }).from(contestProblems).where(eq(contestProblems.contestId, id));
+    const problemIds = problemsData.map(p => p.problemId);
     return { ...contest, problemIds };
+  }
+
+  async getContestLobbyData(id: string, userId: string): Promise<ContestLobbyData | undefined> {
+    const contest = await this.getContestById(id);
+    if (!contest) return undefined;
+
+    const [participantCountResult] = await db.select({ count: count() }).from(contestParticipants).where(eq(contestParticipants.contestId, id));
+    const [isRegisteredResult] = await db.select().from(contestParticipants).where(and(
+      eq(contestParticipants.contestId, id),
+      eq(contestParticipants.userId, userId)
+    ));
+
+    let contestProblemsList: Array<{ id: string, title: string }> = [];
+    const now = new Date();
+    if (new Date(contest.startTime) <= now) {
+      const results = await db.select({ id: problems.id, title: problems.title })
+        .from(problems)
+        .innerJoin(contestProblems, eq(problems.id, contestProblems.problemId))
+        .where(eq(contestProblems.contestId, id));
+      contestProblemsList = results;
+    }
+
+    return {
+      ...contest,
+      participantCount: participantCountResult.count,
+      isRegistered: !!isRegisteredResult,
+      problems: contestProblemsList,
+    };
+  }
+
+  async registerForContest(contestId: string, userId: string): Promise<void> {
+    await db.insert(contestParticipants).values({ contestId, userId }).onConflictDoNothing();
   }
 
   // Submissions
   async createSubmission(submission: InsertSubmission): Promise<Submission> {
-    const [newSubmission] = await db
-      .insert(submissions)
-      .values({
-        ...submission,
-        status: "pending",
-      })
-      .returning();
+    const [newSubmission] = await db.insert(submissions).values({ ...submission, status: "pending" }).returning();
     return newSubmission;
   }
 
-  async updateSubmissionResult(
-    id: string,
-    status: string,
-    output: string,
-    executionTime: number
-  ): Promise<void> {
-    await db
-      .update(submissions)
-      .set({ status, output, executionTime })
-      .where(eq(submissions.id, id));
+  async updateSubmissionResult(id: string, status: string, output: string, executionTime: number): Promise<void> {
+    await db.update(submissions).set({ status, output, executionTime }).where(eq(submissions.id, id));
   }
 
   async getUserSubmissions(userId: string): Promise<Submission[]> {
-    return db
-      .select()
-      .from(submissions)
-      .where(eq(submissions.userId, userId))
-      .orderBy(desc(submissions.createdAt));
+    return db.select().from(submissions).where(eq(submissions.userId, userId)).orderBy(desc(submissions.createdAt));
   }
 
   async getSubmission(id: string): Promise<Submission | undefined> {
@@ -211,12 +225,7 @@ export class DbStorage implements IStorage {
   }
 
   async hasUserSolvedProblem(userId: string, problemId: string): Promise<boolean> {
-    const [solved] = await db
-      .select()
-      .from(solvedProblems)
-      .where(
-        sql`${solvedProblems.userId} = ${userId} AND ${solvedProblems.problemId} = ${problemId}`
-      );
+    const [solved] = await db.select().from(solvedProblems).where(sql`${solvedProblems.userId} = ${userId} AND ${solvedProblems.problemId} = ${problemId}`);
     return !!solved;
   }
 
@@ -236,7 +245,6 @@ export class DbStorage implements IStorage {
         desc(sql`count(distinct ${solvedProblems.problemId})`),
         sql`min(${solvedProblems.firstSolvedAt})`
       );
-
     return result as LeaderboardEntry[];
   }
 }
@@ -244,3 +252,4 @@ export class DbStorage implements IStorage {
 export const storage = new DbStorage();
 
 export { db, users };
+

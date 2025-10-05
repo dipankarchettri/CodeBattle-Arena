@@ -47,6 +47,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- CONTEST ROUTES ---
+
+
+    app.get("/api/public/contests", requireAuth, async (_req, res, next) => {
+    try {
+      const allContests = await storage.getAllContests();
+      const now = new Date();
+
+      const upcoming = allContests.filter(c => new Date(c.startTime) > now);
+      const active = allContests.filter(c => new Date(c.startTime) <= now && new Date(c.endTime) > now);
+      const past = allContests.filter(c => new Date(c.endTime) <= now);
+
+      res.json({ upcoming, active, past });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+    // Get all data for a specific contest lobby
+  app.get("/api/contests/:id/lobby", requireAuth, async (req, res, next) => {
+    try {
+      const contest = await storage.getContestLobbyData(req.params.id, req.user!.id);
+      if (!contest) return res.status(404).json({ message: "Contest not found" });
+      res.json(contest);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Register the current user for a contest
+  app.post("/api/contests/:id/register", requireAuth, async (req, res, next) => {
+    try {
+      await storage.registerForContest(req.params.id, req.user!.id);
+      res.sendStatus(200); // OK
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // --- ADMIN-ONLY PROBLEM ROUTES ---
 
   // Get the full data for a single problem, including test cases (for the editor)

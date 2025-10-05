@@ -132,3 +132,8 @@ export type LeaderboardEntry = {
   firstSolvedAt: Date;
 };
 
+export type ContestLobbyData = Contest & {
+  participantCount: number;
+  isRegistered: boolean;
+  problems: Array<{ id: string; title: string }>;
+};

@@ -1,53 +1,126 @@
-import { Card } from "@/components/ui/card";
-import { Calendar, MapPin, Trophy, Users } from "lucide-react";
+import React, { useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { Calendar, Clock } from "lucide-react";
+import { format } from "date-fns";
+import { Link } from "wouter";
+import type { Contest } from "@shared/schema";
+import Autoplay from "embla-carousel-autoplay";
+
+interface ContestsData {
+  upcoming: Contest[];
+  active: Contest[];
+  past: Contest[];
+}
 
 export default function EventInfoSection() {
-  const stats = [
-    { icon: Calendar, label: "Event Date", value: "March 15, 2025" },
-    { icon: MapPin, label: "Mode", value: "Online Platform" },
-    { icon: Users, label: "Participants", value: "150+ Registered" },
-    { icon: Trophy, label: "Prize Pool", value: "₹50,000" },
-  ];
+  const { data, isLoading } = useQuery<ContestsData>({
+    queryKey: ["/api/public/contests"],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/public/contests");
+      return res.json();
+    },
+  });
+
+  const plugin = useRef(
+    Autoplay({ delay: 5000, stopOnInteraction: true, stopOnMouseEnter: true })
+  );
+
+  const relevantContests = [...(data?.active || []), ...(data?.upcoming || [])];
+
+  if (isLoading) {
+    return (
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-background-elevated">
+        <div className="max-w-7xl mx-auto text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold">Loading Events...</h2>
+        </div>
+      </section>
+    );
+  }
+  
+  if (relevantContests.length === 0) {
+    return (
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-background-elevated">
+        <div className="max-w-7xl mx-auto text-center">
+          <h2 className="text-3xl sm:text-4xl font-bold mb-4">Stay Tuned!</h2>
+          <p className="text-xl text-muted-foreground mb-8">
+            Our next coding event is being planned. Check back soon for details.
+          </p>
+          <Button asChild>
+            <Link href="/contests">View Past Contests</Link>
+          </Button>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section className="py-20 px-4 sm:px-6 lg:px-8 bg-card">
+    <section className="py-20 px-4 sm:px-6 lg:px-8 bg-background-elevated">
       <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-12">
+        <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
-            Upcoming Event <span className="text-primary">Details</span>
+            Upcoming & Active <span className="text-primary-brand">Events</span>
           </h2>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Join us for an exciting coding competition with cash prizes and recognition.
+          <p className="text-xl text-text-secondary max-w-3xl mx-auto">
+            Join a competition, prove your skills, and climb the leaderboard.
           </p>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, index) => (
-            <Card key={index} className="p-6 text-center hover-elevate transition-all duration-300">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-lg bg-primary/10 mb-4">
-                <stat.icon className="w-6 h-6 text-primary" />
-              </div>
-              <h3 className="text-sm font-medium text-muted-foreground mb-1">{stat.label}</h3>
-              <p className="text-xl font-bold">{stat.value}</p>
-            </Card>
-          ))}
-        </div>
-
-        <div className="mt-12 p-8 rounded-lg bg-gradient-to-r from-primary/10 to-chart-2/10 border border-primary/20">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div>
-              <h3 className="text-2xl font-bold mb-2">Registration Open!</h3>
-              <p className="text-muted-foreground">
-                Limited seats available. Register now to secure your spot.
-              </p>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl font-bold text-primary mb-1">23</div>
-              <div className="text-sm text-muted-foreground">Days Remaining</div>
-            </div>
-          </div>
-        </div>
+        <Carousel 
+          opts={{ loop: true }} 
+          className="w-full max-w-4xl mx-auto relative"
+          plugins={[plugin.current]}
+          // ✅ THIS IS THE FIX ✅
+          // We wrap the plugin calls in arrow functions. These new functions match the
+          // type that React's onMouseEnter/onMouseLeave props expect.
+          onMouseEnter={() => plugin.current.stop()}
+          onMouseLeave={() => plugin.current.play()}
+        >
+          <CarouselContent>
+            {relevantContests.map((contest) => (
+              <CarouselItem key={contest.id}>
+                <div className="p-1">
+                  <Card className="bg-background-subtle border-border/50 shadow-lg hover:-translate-y-1 hover:shadow-accent-competitive/20 transition-all duration-300">
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <CardTitle className="text-2xl">{contest.title}</CardTitle>
+                        <Badge variant={data?.active.some(c => c.id === contest.id) ? 'default' : 'secondary'}>
+                          {data?.active.some(c => c.id === contest.id) ? 'Active Now' : 'Upcoming'}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center gap-2 text-sm text-text-secondary">
+                        <Calendar className="w-4 h-4" />
+                        <span>Starts: {format(new Date(contest.startTime), 'MMM d, yyyy h:mm a')}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-text-secondary">
+                        <Clock className="w-4 h-4" />
+                        <span>Ends: {format(new Date(contest.endTime), 'MMM d, yyyy h:mm a')}</span>
+                      </div>
+                    </CardContent>
+                    <CardFooter>
+                      <Button asChild className="w-full">
+                        <Link href={`/contests/${contest.id}`}>
+                          {data?.active.some(c => c.id === contest.id) ? 'Enter Contest' : 'View Details'}
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+          
+          <CarouselPrevious className="absolute top-1/2 -translate-y-1/2 -left-12 hidden md:flex" />
+          <CarouselNext className="absolute top-1/2 -translate-y-1/2 -right-12 hidden md:flex" />
+        </Carousel>
       </div>
     </section>
   );
 }
+
