@@ -19,6 +19,10 @@ The system is architected to host fair, engaging coding events with features lik
 *   **🚫 Robust Anti-Cheating:** Ensures the integrity of competitions with built-in tab-switching detection and disabled pasting in the code editor.
     
 *   **💻 Modern IDE Experience:** A sleek, dark-themed UI featuring the integrated Monaco Editor (the engine behind VS Code) for a professional coding environment.
+
+*   **🎮 Contest Mode:** Full contest lifecycle management with scheduled lobbies, active countdowns, and dynamic UI based on the contest state.
+    
+*   **📊 Admin Analytics:** Comprehensive admin dashboards for creating problems, scheduling contests, and viewing detailed past contest stats including winners and participation metrics.
     
 
 🛠️ Tech Stack
@@ -38,7 +42,7 @@ Node.js, Express.js, TypeScript, Passport.js, Zod
 
 **Database**
 
-PostgreSQL (hosted on Neon), Drizzle ORM
+MongoDB (hosted on MongoDB Atlas), Mongoose ORM
 
 **Code Judge**
 
@@ -59,7 +63,7 @@ Follow these steps to get a local copy of CodeBattle Arena up and running on you
     
 *   **Git:** For cloning the repository.
     
-*   **Neon Account:** You will need a free account from [Neon](https://neon.tech/) to create your cloud PostgreSQL database.
+*   **MongoDB Atlas Account:** You will need a free cluster from [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) or a local MongoDB instance.
     
 
 ### 2\. Clone the Repository
@@ -83,34 +87,33 @@ The server requires a database connection string and a session secret to run.
 
 1.  **Create a .env file** in the **root** of the project directory.
     
-2.  \# .env.example# \
-Get this from your Neon project dashboard (Pooled connection string)
-DATABASE\_URL="postgres://user:password@ep-....aws.neon.tech/neondb?sslmode=require"\
-Generate a long, random string for thisSESSION\_SECRET="your-super-long-and-random-session-secret"
+2.  Add your MongoDB connection string and a session secret.
+```env
+# Get this from your MongoDB Atlas dashboard
+MONGODB_URI="mongodb+srv://user:password@cluster0.mongodb.net/codebattle?retryWrites=true&w=majority"
+
+# Generate a long, random string for this
+SESSION_SECRET="your-super-long-and-random-session-secret"
+```
     
-3.  **Get Your DATABASE\_URL:**
+3.  **Get Your MONGODB_URI:**
     
-    *   Log in to your [Neon](https://neon.tech/) account and go to your project dashboard.
+    *   Log in to your [MongoDB Atlas](https://www.mongodb.com/) account and go to your cluster.
         
-    *   In the **Connection Details** widget, make sure the **"Pooled connection"** checkbox is selected.
+    *   Click **Connect**, then **Connect your application**.
         
-    *   Copy the full connection string and paste it into your .env file.
+    *   Copy the connection string and replace the username and password with your database user credentials.
         
 4.  **Generate Your SESSION\_SECRET:**
     
-    *   openssl rand -base64 32
+    *   Run `openssl rand -base64 32` in your terminal.
         
     *   Copy the output and paste it into your .env file.
         
 
-### 5\. Push the Database Schema
+### 5\. Seed the Database (Optional)
 
-With your .env file configured, you can now create the tables in your Neon database using Drizzle.
-```
-npm run db:push   
-```
-
-You should see a message confirming that the changes were applied.
+The backend will automatically seed problems on first startup if the database is empty, so no manual database push is required!
 
 ### 6\. Run the Application
 
@@ -140,8 +143,7 @@ The project is organized as a monorepo with three main directories:
 🗺️ Future Roadmap
 ------------------
     
-*   \[ \] **Contest Mode:** A special mode with time limits, a private leaderboard, and restricted problem access.
-    
 *   \[ \] **Team Competitions:** Allow users to form teams and compete together.
+*   \[ \] **Multi-language Support for Judge:** Expand from Node.js child_process to Dockerized environments for safe execution of C++, Java, and more.
     
 
