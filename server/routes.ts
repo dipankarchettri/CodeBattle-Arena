@@ -27,8 +27,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get a list of all problems (without their secret test cases)
   app.get("/api/problems", requireAuth, async (_req, res, next) => {
     try {
+      const allContests = await storage.getAllContests();
+      const now = new Date();
+      const hiddenProblemIds = new Set<string>();
+      
+      allContests.forEach(c => {
+        // Hide problems from upcoming or active contests
+        if (new Date(c.endTime) > now) {
+          c.problemIds.forEach(id => hiddenProblemIds.add(id));
+        }
+      });
+
       const problems = await storage.getAllProblems();
-      const problemsWithoutTestCases = problems.map(({ testCases, ...problem }) => problem);
+      const visibleProblems = problems.filter(p => !hiddenProblemIds.has(p.id));
+      
+      const problemsWithoutTestCases = visibleProblems.map(({ testCases, ...problem }) => problem);
       res.json(problemsWithoutTestCases);
     } catch (error) {
       next(error);
@@ -154,6 +167,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get participants for a contest
+  app.get("/api/admin/contests/:id/participants", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      const participants = await storage.getContestParticipants(req.params.id);
+      res.json(participants);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // Get stats for a contest (participants, leaderboard, etc)
+  app.get("/api/admin/contests/:id/stats", requireAuth, requireAdmin, async (req, res, next) => {
+    try {
+      const stats = await storage.getContestStats(req.params.id);
+      res.json(stats);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   // Create a new contest and associate problems with it
   app.post("/api/contests", requireAuth, requireAdmin, async (req, res, next) => {
     try {
@@ -217,14 +250,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await executeCode(
         submission.id,
         validatedData.code,
-        validatedData.language as 'python' | 'javascript',
+        validatedData.language as 'python' | 'javascript' | 'cpp' | 'java',
         problem.testCases as Array<{ input: string; expectedOutput: string }>,
-        problem.timeLimit
+        problem.timeLimit,
+        problem.memoryLimit
       );
 
       await storage.updateSubmissionResult(
         submission.id,
         result.status,
+        result.verdict,
         result.output,
         result.executionTime
       );

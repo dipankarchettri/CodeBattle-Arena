@@ -1,12 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, AlertCircle, Clock } from "lucide-react";
+import { VerdictBadge } from "@/components/VerdictBadge";
 import { formatDistanceToNow } from "date-fns";
+import { Timer } from "lucide-react";
 import type { Submission, Problem } from "@shared/schema";
-
-interface SubmissionWithProblem extends Submission {
-  problemTitle?: string;
-}
 
 export default function SubmissionHistoryTable() {
   const { data: submissions = [], isLoading: submissionsLoading } = useQuery<Submission[]>({
@@ -37,38 +34,6 @@ export default function SubmissionHistoryTable() {
     const problem = problems.find(p => p.id === problemId);
     return problem?.title || "Unknown Problem";
   };
-  const getStatusBadge = (status: Submission["status"]) => {
-    switch (status) {
-      case "correct":
-        return (
-          <Badge className="bg-primary text-primary-foreground">
-            <CheckCircle2 className="w-3 h-3 mr-1" />
-            Accepted
-          </Badge>
-        );
-      case "incorrect":
-        return (
-          <Badge className="bg-destructive text-destructive-foreground">
-            <XCircle className="w-3 h-3 mr-1" />
-            Wrong Answer
-          </Badge>
-        );
-      case "error":
-        return (
-          <Badge className="bg-chart-2 text-white">
-            <AlertCircle className="w-3 h-3 mr-1" />
-            Error
-          </Badge>
-        );
-      case "pending":
-        return (
-          <Badge variant="secondary">
-            <Clock className="w-3 h-3 mr-1" />
-            Pending
-          </Badge>
-        );
-    }
-  };
 
   return (
     <div className="w-full overflow-x-auto">
@@ -77,7 +42,8 @@ export default function SubmissionHistoryTable() {
           <tr>
             <th className="text-left p-4 font-semibold">Problem</th>
             <th className="text-left p-4 font-semibold">Language</th>
-            <th className="text-left p-4 font-semibold">Status</th>
+            <th className="text-left p-4 font-semibold">Verdict</th>
+            <th className="text-left p-4 font-semibold">Time</th>
             <th className="text-left p-4 font-semibold">Submitted</th>
           </tr>
         </thead>
@@ -92,10 +58,24 @@ export default function SubmissionHistoryTable() {
                 {getProblemTitle(submission.problemId)}
               </td>
               <td className="p-4">
-                <Badge variant="outline">{submission.language}</Badge>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {submission.language}
+                </Badge>
               </td>
-              <td className="p-4">{getStatusBadge(submission.status)}</td>
-              <td className="p-4 text-muted-foreground" data-testid={`text-time-${submission.id}`}>
+              <td className="p-4">
+                <VerdictBadge verdict={submission.verdict} status={submission.status} />
+              </td>
+              <td className="p-4 text-muted-foreground text-sm">
+                {submission.executionTime != null ? (
+                  <span className="flex items-center gap-1">
+                    <Timer className="w-3 h-3" />
+                    {submission.executionTime}ms
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/50">—</span>
+                )}
+              </td>
+              <td className="p-4 text-muted-foreground text-sm" data-testid={`text-time-${submission.id}`}>
                 {formatDistanceToNow(new Date(submission.createdAt), { addSuffix: true })}
               </td>
             </tr>

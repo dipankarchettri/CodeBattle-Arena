@@ -116,8 +116,8 @@ export default function EventInfoSection() {
             ))}
           </CarouselContent>
           
-          <CarouselPrevious className="absolute top-1/2 -translate-y-1/2 -left-12 hidden md:flex" />
-          <CarouselNext className="absolute top-1/2 -translate-y-1/2 -right-12 hidden md:flex" />
+          <CarouselPrevious className="absolute top-1/2 -translate-y-1/2 left-0 md:-left-4 lg:-left-12 z-10 hidden sm:flex bg-background hover:bg-accent" />
+          <CarouselNext className="absolute top-1/2 -translate-y-1/2 right-0 md:-right-4 lg:-right-12 z-10 hidden sm:flex bg-background hover:bg-accent" />
         </Carousel>
       </div>
     </section>

@@ -25,7 +25,7 @@ export default function ContestsPage() {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <Navbar />
-        <main className="container py-8 flex-grow text-center">
+        <main className="container mx-auto py-8 flex-grow text-center">
           <p className="text-muted-foreground">Loading contests...</p>
         </main>
         <Footer />
@@ -36,7 +36,7 @@ export default function ContestsPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
-      <main className="container py-8 flex-grow">
+      <main className="container mx-auto py-8 flex-grow">
         <div className="text-center mb-16">
           <h1 className="text-4xl font-bold mb-4">Competitions</h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">

@@ -21,6 +21,7 @@ import AdminContestsDashboard from "@/pages/AdminContestsDashboard";
 import ContestEditor from "@/pages/ContestEditor";
 import ContestsPage from "@/pages/ContestsPage";
 import ContestLobby from "@/pages/ContestLobby";
+import AdminContestView from "@/pages/AdminContestView";
 
 import FadeSlideWrapper from "@/components/FadeSlideWrapper";
 
@@ -57,6 +58,7 @@ function Router() {
             <Switch>
               <Route path="/" component={() => <FadeSlideWrapper><AdminDashboard /></FadeSlideWrapper>} />
               <Route path="/contests" component={() => <FadeSlideWrapper><AdminContestsDashboard /></FadeSlideWrapper>} />
+              <Route path="/contests/:id/view" component={() => <FadeSlideWrapper><AdminContestView /></FadeSlideWrapper>} />
               <Route path="/contest/new" component={() => <FadeSlideWrapper><ContestEditor params={{}} /></FadeSlideWrapper>} />
               <Route path="/contest/:id/edit">
                 {(params) => <FadeSlideWrapper><ContestEditor params={params} /></FadeSlideWrapper>}

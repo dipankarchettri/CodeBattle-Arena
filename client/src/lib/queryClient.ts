@@ -35,7 +35,7 @@ export const getQueryFn: <T>(options: {
       // Handle array query keys like ["/api/problems", "123"]
       url = queryKey.join("/");
     } else {
-      url = queryKey as string;
+      url = queryKey as any;
     }
 
     const res = await fetch(url, {

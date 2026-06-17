@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import Navbar from "@/components/Navbar";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -24,6 +25,8 @@ const formSchema = z.object({
   exampleCases: z.string().refine(val => { try { JSON.parse(val); return true; } catch { return false; } }, "Must be a valid JSON array."),
   boilerplatePython: z.string().min(1, "Python boilerplate is required."),
   boilerplateJavascript: z.string().min(1, "JavaScript boilerplate is required."),
+  boilerplateCpp: z.string().min(1, "C++ boilerplate is required."),
+  boilerplateJava: z.string().min(1, "Java boilerplate is required."),
   constraints: z.string().transform(val => val.split('\n').filter(Boolean)),
 });
 
@@ -60,6 +63,8 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
       constraints: "",
       boilerplatePython: "",
       boilerplateJavascript: "",
+      boilerplateCpp: "",
+      boilerplateJava: "",
     },
   });
 
@@ -76,6 +81,8 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
         constraints: problemData.constraints.join('\n'),
         boilerplatePython: problemData.boilerplatePython || "",
         boilerplateJavascript: problemData.boilerplateJavascript || "",
+        boilerplateCpp: problemData.boilerplateCpp || "",
+        boilerplateJava: problemData.boilerplateJava || "",
       });
     }
   }, [problemData, isEditing, form]);
@@ -119,64 +126,94 @@ export default function ProblemEditor({ params }: { params: { id?: string } }) {
     }
   }
 
-  if (isLoadingProblem) return <div className="text-center p-8">Loading problem data...</div>;
+  if (isLoadingProblem) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navbar />
+        <div className="text-center p-8">Loading problem data...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="card max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-6">{isEditing ? "Edit Problem" : "Create New Problem"}</h1>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <FormField control={form.control} name="title" render={({ field }) => (
-            <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-          )} />
-          <FormField control={form.control} name="description" render={({ field }) => (
-            <FormItem><FormLabel>Description (Markdown supported)</FormLabel><FormControl><Textarea rows={10} {...field} /></FormControl><FormMessage /></FormItem>
-          )} />
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <FormField control={form.control} name="difficulty" render={({ field }) => (
-              <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
-            )} />
-            <FormField control={form.control} name="timeLimit" render={({ field }) => (
-              <FormItem><FormLabel>Time Limit (ms)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-            <FormField control={form.control} name="memoryLimit" render={({ field }) => (
-              <FormItem><FormLabel>Memory Limit (MB)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
-            )} />
-          </div>
-          <FormField control={form.control} name="constraints" render={({ field }) => (
-            <FormItem><FormLabel>Constraints (one per line)</FormLabel><FormControl><Textarea rows={4} {...field} /></FormControl><FormMessage /></FormItem>
-          )} />
-          <FormField control={form.control} name="exampleCases" render={({ field }) => (
-            <FormItem><FormLabel>Example Cases (JSON Array)</FormLabel><FormControl><Textarea rows={8} {...field} placeholder='[{"input": "nums = [2,7,11,15], target = 9", "output": "[0,1]", "explanation": "Because..."}]' /></FormControl><FormMessage /></FormItem>
-          )} />
-          <FormField control={form.control} name="testCases" render={({ field }) => (
-            <FormItem><FormLabel>Test Cases (JSON Array)</FormLabel><FormControl><Textarea rows={8} {...field} placeholder='[{"input": "[2,7,11,15]\\n9", "expectedOutput": "[0,1]"}]' /></FormControl><FormMessage /></FormItem>
-          )} />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <FormField control={form.control} name="boilerplatePython" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Python Boilerplate</FormLabel>
-                <FormControl>
-                  <Textarea rows={8} {...field} className="font-mono" placeholder={`def solve(arg1, arg2):\n  # Your logic here\n  pass`} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-            <FormField control={form.control} name="boilerplateJavascript" render={({ field }) => (
-              <FormItem>
-                <FormLabel>JavaScript Boilerplate</FormLabel>
-                <FormControl>
-                  <Textarea rows={8} {...field} className="font-mono" placeholder={`function solve(arg1, arg2) {\n  // Your logic here\n}`} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-          </div>
-          <Button type="submit" disabled={mutation.isPending}>
-            {mutation.isPending ? "Saving..." : (isEditing ? "Save Changes" : "Create Problem")}
-          </Button>
-        </form>
-      </Form>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="card max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold mb-6">{isEditing ? "Edit Problem" : "Create New Problem"}</h1>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <FormField control={form.control} name="title" render={({ field }) => (
+                <FormItem><FormLabel>Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="description" render={({ field }) => (
+                <FormItem><FormLabel>Description (Markdown supported)</FormLabel><FormControl><Textarea rows={10} {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <FormField control={form.control} name="difficulty" render={({ field }) => (
+                  <FormItem><FormLabel>Difficulty</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="Easy">Easy</SelectItem><SelectItem value="Medium">Medium</SelectItem><SelectItem value="Hard">Hard</SelectItem></SelectContent></Select><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="timeLimit" render={({ field }) => (
+                  <FormItem><FormLabel>Time Limit (ms)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+                <FormField control={form.control} name="memoryLimit" render={({ field }) => (
+                  <FormItem><FormLabel>Memory Limit (MB)</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
+                )} />
+              </div>
+              <FormField control={form.control} name="constraints" render={({ field }) => (
+                <FormItem><FormLabel>Constraints (one per line)</FormLabel><FormControl><Textarea rows={4} {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="exampleCases" render={({ field }) => (
+                <FormItem><FormLabel>Example Cases (JSON Array)</FormLabel><FormControl><Textarea rows={8} {...field} placeholder='[{"input": "nums = [2,7,11,15], target = 9", "output": "[0,1]", "explanation": "Because..."}]' /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="testCases" render={({ field }) => (
+                <FormItem><FormLabel>Test Cases (JSON Array)</FormLabel><FormControl><Textarea rows={8} {...field} placeholder='[{"input": "[2,7,11,15]\\n9", "expectedOutput": "[0,1]"}]' /></FormControl><FormMessage /></FormItem>
+              )} />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <FormField control={form.control} name="boilerplatePython" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Python Boilerplate</FormLabel>
+                    <FormControl>
+                      <Textarea rows={8} {...field} className="font-mono" placeholder={`def solve(arg1, arg2):\n  # Your logic here\n  pass`} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="boilerplateJavascript" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>JavaScript Boilerplate</FormLabel>
+                    <FormControl>
+                      <Textarea rows={8} {...field} className="font-mono" placeholder={`function solve(arg1, arg2) {\n  // Your logic here\n}`} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="boilerplateCpp" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>C++ Boilerplate</FormLabel>
+                    <FormControl>
+                      <Textarea rows={8} {...field} className="font-mono" placeholder={`#include <iostream>\nusing namespace std;\n\nint main() {\n  // your code\n  return 0;\n}`} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="boilerplateJava" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Java Boilerplate</FormLabel>
+                    <FormControl>
+                      <Textarea rows={8} {...field} className="font-mono" placeholder={`public class Solution {\n  public static void main(String[] args) {\n    // your code\n  }\n}`} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending ? "Saving..." : (isEditing ? "Save Changes" : "Create Problem")}
+              </Button>
+            </form>
+          </Form>
+        </div>
+      </div>
     </div>
   );
 }

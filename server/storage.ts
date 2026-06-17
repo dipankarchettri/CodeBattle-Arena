@@ -10,16 +10,14 @@ import {
   type Contest,
   type InsertContest,
   type ContestLobbyData,
-  users,
-  problems,
-  submissions,
-  solvedProblems,
-  contests,
-  contestProblems,
-  contestParticipants,
 } from "@shared/schema";
-import { db } from "./db";
-import { eq, desc, sql, count, and } from "drizzle-orm";
+import {
+  UserModel,
+  ProblemModel,
+  SubmissionModel,
+  SolvedProblemModel,
+  ContestModel
+} from "./db";
 
 export interface IStorage {
   // Users
@@ -42,6 +40,7 @@ export interface IStorage {
   updateSubmissionResult(
     id: string,
     status: string,
+    verdict: string,
     output: string,
     executionTime: number
   ): Promise<void>;
@@ -67,26 +66,37 @@ export interface IStorage {
   registerForContest(contestId: string, userId: string): Promise<void>;
 }
 
+// Helper function to convert Mongoose documents to plain objects of type T,
+// removing MongoDB metadata fields like _id and __v.
+function toCleanObject<T>(doc: any): T {
+  if (!doc) return doc;
+  const obj = doc.toObject ? doc.toObject() : doc;
+  delete obj._id;
+  delete obj.__v;
+  return obj as T;
+}
+
 export class DbStorage implements IStorage {
   // Users
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    const user = await UserModel.findOne({ id }).lean();
+    return user ? toCleanObject<User>(user) : undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user;
+    const user = await UserModel.findOne({ username }).lean();
+    return user ? toCleanObject<User>(user) : undefined;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
+    const user = await UserModel.findOne({ email }).lean();
+    return user ? toCleanObject<User>(user) : undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
+    const user = new UserModel(insertUser);
+    await user.save();
+    return toCleanObject<User>(user);
   }
 
   async getUserPublic(id: string): Promise<UserPublic | undefined> {
@@ -98,70 +108,70 @@ export class DbStorage implements IStorage {
 
   // Problems
   async getAllProblems(): Promise<Problem[]> {
-    return db.select().from(problems).orderBy(problems.createdAt);
+    const list = await ProblemModel.find({}).sort({ createdAt: 1 }).lean();
+    return list.map(p => toCleanObject<Problem>(p));
   }
 
   async getProblem(id: string): Promise<Problem | undefined> {
-    const [problem] = await db.select().from(problems).where(eq(problems.id, id));
-    return problem;
+    const problem = await ProblemModel.findOne({ id }).lean();
+    return problem ? toCleanObject<Problem>(problem) : undefined;
   }
 
   async createProblem(problem: InsertProblem): Promise<Problem> {
-    const [newProblem] = await db.insert(problems).values(problem).returning();
-    return newProblem;
+    const newProblem = new ProblemModel(problem);
+    await newProblem.save();
+    return toCleanObject<Problem>(newProblem);
   }
 
   async getProblemCount(): Promise<number> {
-    const [result] = await db.select({ count: count() }).from(problems);
-    return result.count;
+    return ProblemModel.countDocuments();
   }
 
   async updateProblem(id: string, problem: Partial<InsertProblem>): Promise<Problem | undefined> {
-    const [updatedProblem] = await db.update(problems).set(problem).where(eq(problems.id, id)).returning();
-    return updatedProblem;
+    const updated = await ProblemModel.findOneAndUpdate({ id }, { $set: problem }, { new: true }).lean();
+    return updated ? toCleanObject<Problem>(updated) : undefined;
   }
 
   async deleteProblem(id: string): Promise<void> {
-    await db.delete(problems).where(eq(problems.id, id));
+    await ProblemModel.deleteOne({ id });
   }
 
   // Contests
   async createContest(contest: InsertContest): Promise<Contest> {
-    const [newContest] = await db.insert(contests).values(contest).returning();
-    return newContest;
+    const newContest = new ContestModel(contest);
+    await newContest.save();
+    return toCleanObject<Contest>(newContest);
   }
 
   async getAllContests(): Promise<Contest[]> {
-    return db.select().from(contests).orderBy(desc(contests.startTime));
+    const list = await ContestModel.find({}).sort({ startTime: -1 }).lean();
+    return list.map(c => toCleanObject<Contest>(c));
   }
 
   async getContestById(id: string): Promise<Contest | undefined> {
-    const [contest] = await db.select().from(contests).where(eq(contests.id, id));
-    return contest;
+    const contest = await ContestModel.findOne({ id }).lean();
+    return contest ? toCleanObject<Contest>(contest) : undefined;
   }
 
   async updateContest(id: string, data: Partial<InsertContest>): Promise<Contest | undefined> {
-    const [updatedContest] = await db.update(contests).set(data).where(eq(contests.id, id)).returning();
-    return updatedContest;
+    const updated = await ContestModel.findOneAndUpdate({ id }, { $set: data }, { new: true }).lean();
+    return updated ? toCleanObject<Contest>(updated) : undefined;
   }
 
   async deleteContest(id: string): Promise<void> {
-    await db.delete(contests).where(eq(contests.id, id));
+    await ContestModel.deleteOne({ id });
   }
 
   async addProblemsToContest(contestId: string, problemIds: string[]): Promise<void> {
-    await db.delete(contestProblems).where(eq(contestProblems.contestId, contestId));
-    if (problemIds.length > 0) {
-      const values = problemIds.map(problemId => ({ contestId, problemId }));
-      await db.insert(contestProblems).values(values);
-    }
+    await ContestModel.updateOne({ id: contestId }, { $set: { problemIds } });
   }
 
   async getContestWithProblems(id: string): Promise<(Contest & { problemIds: string[] }) | undefined> {
     const contest = await this.getContestById(id);
     if (!contest) return undefined;
-    const problemsData = await db.select({ problemId: contestProblems.problemId }).from(contestProblems).where(eq(contestProblems.contestId, id));
-    const problemIds = problemsData.map(p => p.problemId);
+    
+    const rawContest = await ContestModel.findOne({ id }).lean();
+    const problemIds = rawContest?.problemIds || [];
     return { ...contest, problemIds };
   }
 
@@ -169,87 +179,192 @@ export class DbStorage implements IStorage {
     const contest = await this.getContestById(id);
     if (!contest) return undefined;
 
-    const [participantCountResult] = await db.select({ count: count() }).from(contestParticipants).where(eq(contestParticipants.contestId, id));
-    const [isRegisteredResult] = await db.select().from(contestParticipants).where(and(
-      eq(contestParticipants.contestId, id),
-      eq(contestParticipants.userId, userId)
-    ));
+    const rawContest = await ContestModel.findOne({ id }).lean();
+    const problemIds = rawContest?.problemIds || [];
+    const participantIds = rawContest?.participantIds || [];
+
+    const participantCount = participantIds.length;
+    const isRegistered = participantIds.includes(userId);
 
     let contestProblemsList: Array<{ id: string, title: string }> = [];
     const now = new Date();
     if (new Date(contest.startTime) <= now) {
-      const results = await db.select({ id: problems.id, title: problems.title })
-        .from(problems)
-        .innerJoin(contestProblems, eq(problems.id, contestProblems.problemId))
-        .where(eq(contestProblems.contestId, id));
-      contestProblemsList = results;
+      const problemsList = await ProblemModel.find({ id: { $in: problemIds } }).lean();
+      contestProblemsList = problemsList.map(p => ({ id: p.id, title: p.title }));
     }
 
     return {
       ...contest,
-      participantCount: participantCountResult.count,
-      isRegistered: !!isRegisteredResult,
+      participantCount,
+      isRegistered,
       problems: contestProblemsList,
     };
   }
 
   async registerForContest(contestId: string, userId: string): Promise<void> {
-    await db.insert(contestParticipants).values({ contestId, userId }).onConflictDoNothing();
+    await ContestModel.updateOne({ id: contestId }, { $addToSet: { participantIds: userId } });
+  }
+
+  async getContestParticipants(contestId: string): Promise<Array<{ id: string, username: string, email: string }>> {
+    const rawContest = await ContestModel.findOne({ id: contestId }).lean();
+    if (!rawContest || !rawContest.participantIds || rawContest.participantIds.length === 0) return [];
+    
+    const participants = await UserModel.find({ id: { $in: rawContest.participantIds } }).lean();
+    return participants.map(p => ({
+      id: p.id,
+      username: p.username,
+      email: p.email
+    }));
+  }
+
+  async getContestStats(contestId: string): Promise<any> {
+    const rawContest = await ContestModel.findOne({ id: contestId }).lean();
+    if (!rawContest) throw new Error("Contest not found");
+    
+    const participantIds = rawContest.participantIds || [];
+    const participants = await UserModel.find({ id: { $in: participantIds } }).lean();
+    
+    const participantDetails = participants.map(p => ({
+      id: p.id,
+      username: p.username,
+      email: p.email
+    }));
+
+    const contestStartTime = new Date(rawContest.startTime);
+    const contestEndTime = new Date(rawContest.endTime);
+    
+    const submissions = await SubmissionModel.find({
+      problemId: { $in: rawContest.problemIds || [] },
+      createdAt: { $gte: contestStartTime, $lte: contestEndTime }
+    }).lean();
+
+    const statsMap = new Map<string, { username: string, score: number, timePenalty: number }>();
+    
+    for (const p of participants) {
+      statsMap.set(p.id, { username: p.username, score: 0, timePenalty: 0 });
+    }
+
+    const solvedSet = new Set<string>();
+
+    for (const sub of submissions) {
+      if (sub.status === 'correct') {
+        const userProbKey = `${sub.userId}-${sub.problemId}`;
+        if (!solvedSet.has(userProbKey)) {
+          solvedSet.add(userProbKey);
+          
+          let userStat = statsMap.get(sub.userId);
+          if (!userStat) {
+             const user = await UserModel.findOne({ id: sub.userId }).lean();
+             userStat = { username: user?.username || 'Unknown', score: 0, timePenalty: 0 };
+             statsMap.set(sub.userId, userStat);
+          }
+          
+          userStat.score += 1;
+          const timeToSolve = (new Date(sub.createdAt!).getTime() - contestStartTime.getTime()) / 1000;
+          userStat.timePenalty += timeToSolve;
+        }
+      }
+    }
+
+    const leaderboard = Array.from(statsMap.values()).sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return a.timePenalty - b.timePenalty; 
+    });
+
+    return {
+      totalParticipants: participantDetails.length,
+      participants: participantDetails,
+      leaderboard,
+      totalSubmissions: submissions.length,
+    };
   }
 
   // Submissions
   async createSubmission(submission: InsertSubmission): Promise<Submission> {
-    const [newSubmission] = await db.insert(submissions).values({ ...submission, status: "pending" }).returning();
-    return newSubmission;
+    const newSubmission = new SubmissionModel({ ...submission, status: "pending" });
+    await newSubmission.save();
+    return toCleanObject<Submission>(newSubmission);
   }
 
-  async updateSubmissionResult(id: string, status: string, output: string, executionTime: number): Promise<void> {
-    await db.update(submissions).set({ status, output, executionTime }).where(eq(submissions.id, id));
+  async updateSubmissionResult(
+    id: string,
+    status: string,
+    verdict: string,
+    output: string,
+    executionTime: number
+  ): Promise<void> {
+    await SubmissionModel.updateOne({ id }, { $set: { status, verdict, output, executionTime } });
   }
 
   async getUserSubmissions(userId: string): Promise<Submission[]> {
-    return db.select().from(submissions).where(eq(submissions.userId, userId)).orderBy(desc(submissions.createdAt));
+    const list = await SubmissionModel.find({ userId }).sort({ createdAt: -1 }).lean();
+    return list.map(s => toCleanObject<Submission>(s));
   }
 
   async getSubmission(id: string): Promise<Submission | undefined> {
-    const [submission] = await db.select().from(submissions).where(eq(submissions.id, id));
-    return submission;
+    const submission = await SubmissionModel.findOne({ id }).lean();
+    return submission ? toCleanObject<Submission>(submission) : undefined;
   }
 
   // Solved Problems
   async markProblemSolved(userId: string, problemId: string): Promise<void> {
     const alreadySolved = await this.hasUserSolvedProblem(userId, problemId);
     if (!alreadySolved) {
-      await db.insert(solvedProblems).values({ userId, problemId });
+      const solved = new SolvedProblemModel({ userId, problemId });
+      await solved.save();
     }
   }
 
   async hasUserSolvedProblem(userId: string, problemId: string): Promise<boolean> {
-    const [solved] = await db.select().from(solvedProblems).where(sql`${solvedProblems.userId} = ${userId} AND ${solvedProblems.problemId} = ${problemId}`);
+    const solved = await SolvedProblemModel.findOne({ userId, problemId }).lean();
     return !!solved;
   }
 
   // Leaderboard
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
-    const result = await db
-      .select({
-        userId: users.id,
-        username: users.username,
-        problemsSolved: sql<number>`count(distinct ${solvedProblems.problemId})`,
-        firstSolvedAt: sql<Date>`min(${solvedProblems.firstSolvedAt})`,
-      })
-      .from(users)
-      .leftJoin(solvedProblems, eq(users.id, solvedProblems.userId))
-      .groupBy(users.id, users.username)
-      .orderBy(
-        desc(sql`count(distinct ${solvedProblems.problemId})`),
-        sql`min(${solvedProblems.firstSolvedAt})`
-      );
+    // Aggregates users, performs a lookup on solved_problems to count solved problems
+    // and extract the date when they first solved a problem.
+    const result = await UserModel.aggregate([
+      {
+        $lookup: {
+          from: "solved_problems",
+          localField: "id",
+          foreignField: "userId",
+          as: "solved"
+        }
+      },
+      {
+        $lookup: {
+          from: "submissions",
+          localField: "id",
+          foreignField: "userId",
+          as: "submissions"
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: "$id",
+          username: "$username",
+          problemsSolved: { $size: "$solved" },
+          lastSubmissionTime: {
+            $cond: {
+              if: { $gt: [{ $size: "$submissions" }, 0] },
+              then: { $max: "$submissions.createdAt" },
+              else: null
+            }
+          }
+        }
+      },
+      {
+        $sort: {
+          problemsSolved: -1,
+          lastSubmissionTime: -1
+        }
+      }
+    ]);
     return result as LeaderboardEntry[];
   }
 }
 
 export const storage = new DbStorage();
-
-export { db, users };
-

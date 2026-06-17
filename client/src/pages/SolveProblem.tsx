@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface ExampleCase {
   input: string;
@@ -30,6 +31,8 @@ function formatTime(ms: number): string {
 export default function SolveProblem({ params }: { params: { id: string } }) {
   const { id: problemId } = params;
   const { toast } = useToast();
+  const { user, isLoading: isAuthLoading } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   // --- Anti-Cheating State ---
   const [infractions, setInfractions] = useState(0);
@@ -53,6 +56,8 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
 
   // --- On-Mount Effects ---
   useEffect(() => {
+    if (isAuthLoading || isAdmin) return;
+
     // 1. Show the initial guidelines toast
     toast({
       title: "Competition Guidelines",
@@ -72,10 +77,12 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
         localStorage.removeItem(lockoutKey); // Clean up expired lock
       }
     }
-  }, [problemId, toast]);
+  }, [problemId, toast, isAdmin, isAuthLoading]);
 
   // --- UPGRADED Anti-Cheating Logic ---
   useEffect(() => {
+    if (isAuthLoading || isAdmin) return;
+
     const handleInfraction = () => {
       if (!isLocked && !isOutOfFocusRef.current) {
         isOutOfFocusRef.current = true;
@@ -107,7 +114,7 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
       window.removeEventListener('blur', handleBlur);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isLocked, problemId]);
+  }, [isLocked, problemId, isAdmin, isAuthLoading]);
 
   // --- Lockout Countdown Timer Effect ---
   useEffect(() => {
@@ -180,7 +187,7 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
         onDismiss={handleDismissWarning}
       />
 
-      {isLocked && (
+      {isLocked && !isAdmin && (
         <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center">
           <Card className="max-w-md p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
@@ -245,9 +252,11 @@ export default function SolveProblem({ params }: { params: { id: string } }) {
         <div className="h-full">
           <CodeEditor
             problemId={problem.id}
-            isLocked={isLocked}
+            isLocked={isLocked && !isAdmin}
             boilerplatePython={problem.boilerplatePython}
             boilerplateJavascript={problem.boilerplateJavascript}
+            boilerplateCpp={problem.boilerplateCpp}
+            boilerplateJava={problem.boilerplateJava}
           />
         </div>
       </div>

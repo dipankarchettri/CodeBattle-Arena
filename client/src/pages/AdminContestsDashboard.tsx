@@ -6,6 +6,7 @@ import { Link } from "wouter";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import type { Contest } from "@shared/schema";
+import Navbar from "@/components/Navbar";
 
 export default function AdminContestsDashboard() {
   const { toast } = useToast();
@@ -29,42 +30,60 @@ export default function AdminContestsDashboard() {
     }
   });
 
-  if (isLoading) return <div>Loading contests...</div>;
-
   return (
-    <div className="card max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Manage Contests</h1>
-        <Button asChild>
-          {/* ✅ Link is now relative */}
-          <Link href="/contest/new">Create New Contest</Link>
-        </Button>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="card max-w-7xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold">Manage Contests</h1>
+            <Button asChild>
+              <Link href="/contest/new">Create New Contest</Link>
+            </Button>
+          </div>
+          
+          {isLoading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Loading contests...</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Title</TableHead>
+                  <TableHead>Start Time</TableHead>
+                  <TableHead>End Time</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {contests?.map((contest) => (
+                  <TableRow key={contest.id}>
+                    <TableCell>{contest.title}</TableCell>
+                    <TableCell>{format(new Date(contest.startTime), 'PPpp')}</TableCell>
+                    <TableCell>{format(new Date(contest.endTime), 'PPpp')}</TableCell>
+                    <TableCell className="space-x-2">
+                      <Button variant="secondary" size="sm" asChild>
+                        <Link href={`/contests/${contest.id}/view`}>View</Link>
+                      </Button>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/contest/${contest.id}/edit`}>Edit</Link>
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => {
+                        if (window.confirm(`Are you sure you want to delete "${contest.title}"?`)) {
+                          deleteMutation.mutate(contest.id);
+                        }
+                      }}>
+                        Delete
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </div>
       </div>
-      <Table>
-        <TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Start Time</TableHead><TableHead>End Time</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader>
-        <TableBody>
-          {contests?.map((contest) => (
-            <TableRow key={contest.id}>
-              <TableCell>{contest.title}</TableCell>
-              <TableCell>{format(new Date(contest.startTime), 'PPpp')}</TableCell>
-              <TableCell>{format(new Date(contest.endTime), 'PPpp')}</TableCell>
-              <TableCell className="space-x-2">
-                <Button variant="outline" size="sm" asChild>
-                   {/* ✅ Link is now relative */}
-                  <Link href={`/contest/${contest.id}/edit`}>Edit</Link>
-                </Button>
-                <Button variant="destructive" size="sm" onClick={() => {
-                  if (window.confirm(`Are you sure you want to delete "${contest.title}"?`)) {
-                    deleteMutation.mutate(contest.id);
-                  }
-                }}>
-                  Delete
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
     </div>
   );
 }

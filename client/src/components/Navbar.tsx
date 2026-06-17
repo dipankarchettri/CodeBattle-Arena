@@ -13,6 +13,23 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+// Custom link helper to break out of wouter's nested base path when on /admin pages
+const NavLink = ({ href, children, ...props }: { href: string; children: React.ReactNode; [key: string]: any }) => {
+  const isAdminPage = window.location.pathname.startsWith("/admin");
+  if (isAdminPage) {
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  }
+  return (
+    <Link href={href} {...props}>
+      {children}
+    </Link>
+  );
+};
+
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user, logout } = useAuth();
@@ -25,30 +42,37 @@ export default function Navbar() {
     <nav className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
-          <Link href="/" data-testid="link-home">
+          <NavLink href="/" data-testid="link-home">
             <div className="flex items-center gap-2 hover-elevate px-3 py-2 rounded-md">
               <Code className="w-8 h-8 text-primary" />
               <span className="text-xl font-bold">CodeBattle Arena</span>
             </div>
-          </Link>
+          </NavLink>
 
           <div className="hidden md:flex items-center gap-6">
-            <Link href="/problems" data-testid="link-problems">
+            <NavLink href="/problems" data-testid="link-problems">
               <div className="text-foreground hover-elevate px-3 py-2 rounded-md font-medium">
                 Problems
               </div>
-            </Link>
-            <Link href="/leaderboard" data-testid="link-leaderboard">
+            </NavLink>
+            <NavLink href="/leaderboard" data-testid="link-leaderboard">
               <div className="text-foreground hover-elevate px-3 py-2 rounded-md font-medium">
                 Leaderboard
               </div>
-            </Link>
+            </NavLink>
             {user && (
-              <Link href="/submissions" data-testid="link-submissions">
+              <NavLink href="/submissions" data-testid="link-submissions">
                 <div className="text-foreground hover-elevate px-3 py-2 rounded-md font-medium">
                   My Submissions
                 </div>
-              </Link>
+              </NavLink>
+            )}
+            {user && user.role === "admin" && (
+              <NavLink href="/admin" data-testid="link-admin">
+                <div className="text-foreground hover-elevate px-3 py-2 rounded-md font-medium text-accent-competitive font-semibold">
+                  Admin Panel
+                </div>
+              </NavLink>
             )}
           </div>
 
@@ -80,16 +104,16 @@ export default function Navbar() {
               </DropdownMenu>
             ) : (
               <>
-                <Link href="/login">
+                <NavLink href="/login">
                   <Button variant="ghost" data-testid="button-login">
                     Login
                   </Button>
-                </Link>
-                <Link href="/register">
+                </NavLink>
+                <NavLink href="/register">
                   <Button data-testid="button-register">
                     Register
                   </Button>
-                </Link>
+                </NavLink>
               </>
             )}
           </div>
@@ -108,22 +132,29 @@ export default function Navbar() {
         {mobileMenuOpen && (
           <div className="md:hidden py-4 border-t border-border">
             <div className="flex flex-col gap-2">
-              <Link href="/problems">
+              <NavLink href="/problems">
                 <div className="text-foreground hover-elevate px-3 py-2 rounded-md font-medium block">
                   Problems
                 </div>
-              </Link>
-              <Link href="/leaderboard">
+              </NavLink>
+              <NavLink href="/leaderboard">
                 <div className="text-foreground hover-elevate px-3 py-2 rounded-md font-medium block">
                   Leaderboard
                 </div>
-              </Link>
+              </NavLink>
               {user && (
-                <Link href="/submissions">
+                <NavLink href="/submissions">
                   <div className="text-foreground hover-elevate px-3 py-2 rounded-md font-medium block">
                     My Submissions
                   </div>
-                </Link>
+                </NavLink>
+              )}
+              {user && user.role === "admin" && (
+                <NavLink href="/admin">
+                  <div className="text-foreground hover-elevate px-3 py-2 rounded-md font-medium block text-accent-competitive font-semibold">
+                    Admin Panel
+                  </div>
+                </NavLink>
               )}
               <div className="pt-2 mt-2 border-t border-border">
                 {user ? (
@@ -139,16 +170,16 @@ export default function Navbar() {
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2">
-                    <Link href="/login">
+                    <NavLink href="/login">
                       <Button variant="ghost" className="w-full justify-start">
                         Login
                       </Button>
-                    </Link>
-                    <Link href="/register">
+                    </NavLink>
+                    <NavLink href="/register">
                       <Button className="w-full justify-start">
                         Register
                       </Button>
-                    </Link>
+                    </NavLink>
                   </div>
                 )}
               </div>

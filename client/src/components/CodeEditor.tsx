@@ -3,41 +3,57 @@ import { useMutation } from "@tanstack/react-query";
 import Editor, { OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Play, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { VerdictBadge } from "@/components/VerdictBadge";
+import { Play, Clock } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { Submission } from "@shared/schema";
 
-type Language = "python" | "javascript";
-type SubmissionStatus = "pending" | "correct" | "incorrect" | "error" | null;
+type Language = "python" | "javascript" | "cpp" | "java";
 
-// ✅ THIS IS THE FIX ✅
-// The interface now correctly includes the optional boilerplate props.
+// Monaco editor language mapping
+const monacoLanguageMap: Record<Language, string> = {
+  python: "python",
+  javascript: "javascript",
+  cpp: "cpp",
+  java: "java",
+};
+
 interface CodeEditorProps {
   problemId: string;
   isLocked: boolean;
   boilerplatePython?: string;
   boilerplateJavascript?: string;
+  boilerplateCpp?: string;
+  boilerplateJava?: string;
 }
+
+const DEFAULT_BOILERPLATE: Record<Language, string> = {
+  python: "def solve():\n    pass\n",
+  javascript: "function solve() {\n    // your code here\n}\n",
+  cpp: "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    // your code here\n    return 0;\n}\n",
+  java: "import java.util.*;\n\npublic class Solution {\n    public static void main(String[] args) {\n        // your code here\n    }\n}\n",
+};
 
 export default function CodeEditor({
   problemId,
   isLocked,
   boilerplatePython,
   boilerplateJavascript,
+  boilerplateCpp,
+  boilerplateJava,
 }: CodeEditorProps) {
   const [language, setLanguage] = useState<Language>("python");
-  const [code, setCode] = useState("");
-  const [status, setStatus] = useState<SubmissionStatus>(null);
+  const [code, setCode] = useState(boilerplatePython || DEFAULT_BOILERPLATE.python);
+  const [verdict, setVerdict] = useState<string | null>(null);
+  const [executionTime, setExecutionTime] = useState<number | null>(null);
   const [output, setOutput] = useState("");
+  const [isPending, setIsPending] = useState(false);
   const { toast } = useToast();
   const editorRef = useRef<any>(null);
 
   useEffect(() => {
-    if (boilerplatePython) {
-      setCode(boilerplatePython);
-    }
+    if (boilerplatePython) setCode(boilerplatePython);
   }, [boilerplatePython]);
 
   const handleEditorDidMount: OnMount = (editor, _monaco) => {
@@ -50,6 +66,15 @@ export default function CodeEditor({
       });
       editor.trigger('keyboard', 'undo', null);
     });
+  };
+
+  const getBoilerplateForLanguage = (lang: Language): string => {
+    switch (lang) {
+      case "python":      return boilerplatePython      || DEFAULT_BOILERPLATE.python;
+      case "javascript":  return boilerplateJavascript  || DEFAULT_BOILERPLATE.javascript;
+      case "cpp":         return boilerplateCpp          || DEFAULT_BOILERPLATE.cpp;
+      case "java":        return boilerplateJava         || DEFAULT_BOILERPLATE.java;
+    }
   };
 
   const submitMutation = useMutation({
@@ -69,34 +94,40 @@ export default function CodeEditor({
       return await response.json();
     },
     onSuccess: (data: Submission) => {
-      setStatus(data.status as SubmissionStatus);
+      setIsPending(false);
+      const v = data.verdict || (data.status === "correct" ? "AC" : data.status === "incorrect" ? "WA" : "RE");
+      setVerdict(v);
+      setExecutionTime(data.executionTime);
       setOutput(data.output || "Execution finished without output.");
       queryClient.invalidateQueries({ queryKey: ["/api/submissions"] });
 
-      if (data.status === "correct") {
-        toast({ title: "Accepted!", description: `Execution time: ${data.executionTime}ms` });
-      } else if (data.status === "incorrect") {
-        toast({ title: "Wrong Answer", description: "See output for details.", variant: "destructive" });
+      if (v === "AC") {
+        toast({ title: "✅ Accepted!", description: `All test cases passed in ${data.executionTime}ms` });
+      } else if (v === "WA") {
+        toast({ title: "❌ Wrong Answer", description: "Your output didn't match the expected output.", variant: "destructive" });
+      } else if (v === "TLE") {
+        toast({ title: "⏱️ Time Limit Exceeded", description: "Your solution was too slow.", variant: "destructive" });
+      } else if (v === "MLE") {
+        toast({ title: "💾 Memory Limit Exceeded", description: "Your solution used too much memory.", variant: "destructive" });
+      } else if (v === "CE") {
+        toast({ title: "⚠️ Compile Error", description: "Your code failed to compile.", variant: "destructive" });
       } else {
-        toast({ title: "Runtime Error", description: "See output for details.", variant: "destructive" });
+        toast({ title: "💥 Runtime Error", description: "Your code crashed during execution.", variant: "destructive" });
       }
     },
     onError: (error: Error) => {
-      console.error("Detailed Submission Error:", error);
-      setStatus("error");
-      setOutput(`Submission failed. Check the browser's developer console (F12) for details.\n\nMessage: ${error.message}`);
+      setIsPending(false);
+      setVerdict("RE");
+      setOutput(`Submission failed.\n\nMessage: ${error.message}`);
       toast({ title: "Submission Error", description: error.message, variant: "destructive" });
     },
   });
 
   const handleLanguageChange = (value: Language) => {
     setLanguage(value);
-    if (value === "javascript" && boilerplateJavascript) {
-      setCode(boilerplateJavascript);
-    } else if (value === "python" && boilerplatePython) {
-      setCode(boilerplatePython);
-    }
-    setStatus(null);
+    setCode(getBoilerplateForLanguage(value));
+    setVerdict(null);
+    setExecutionTime(null);
     setOutput("");
   };
 
@@ -109,40 +140,49 @@ export default function CodeEditor({
       });
       return;
     }
-    
-    setStatus("pending");
-    setOutput("Running test cases...");
+
+    setIsPending(true);
+    setVerdict(null);
+    setOutput("⏳ Running test cases...");
     submitMutation.mutate();
   };
 
-  const getStatusBadge = () => {
-    if (status === "correct") return <Badge className="bg-primary text-primary-foreground"><CheckCircle2 className="w-4 h-4 mr-1" /> Accepted</Badge>;
-    if (status === "incorrect") return <Badge variant="destructive"><XCircle className="w-4 h-4 mr-1" /> Wrong Answer</Badge>;
-    if (status === "error") return <Badge variant="destructive"><AlertCircle className="w-4 h-4 mr-1" /> Runtime Error</Badge>;
-    return null;
-  };
-
-  if (!boilerplatePython) {
-    return <div className="p-4">Loading Editor...</div>;
-  }
-
   return (
     <div className="flex flex-col h-full">
+      {/* Toolbar */}
       <div className="flex items-center justify-between p-4 border-b border-border">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Select value={language} onValueChange={handleLanguageChange}>
-            <SelectTrigger className="w-[180px]" data-testid="select-language">
+            <SelectTrigger className="w-[160px]" data-testid="select-language">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="python">Python</SelectItem>
               <SelectItem value="javascript">JavaScript</SelectItem>
+              <SelectItem value="cpp">C++</SelectItem>
+              <SelectItem value="java">Java</SelectItem>
             </SelectContent>
           </Select>
-          {getStatusBadge()}
+
+          {/* Verdict badge shown inline after submission */}
+          {verdict && !isPending && (
+            <div className="flex items-center gap-2">
+              <VerdictBadge verdict={verdict} size="md" />
+              {executionTime != null && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {executionTime}ms
+                </span>
+              )}
+            </div>
+          )}
+          {isPending && (
+            <span className="text-xs text-muted-foreground animate-pulse">Running...</span>
+          )}
         </div>
-        <Button 
-          onClick={handleSubmit} 
+
+        <Button
+          onClick={handleSubmit}
           disabled={submitMutation.isPending || isLocked}
           data-testid="button-submit-code"
         >
@@ -151,10 +191,11 @@ export default function CodeEditor({
         </Button>
       </div>
 
+      {/* Monaco Editor */}
       <div className="flex-1 overflow-hidden">
         <Editor
           height="100%"
-          language={language}
+          language={monacoLanguageMap[language]}
           value={code}
           onChange={(value) => setCode(value || "")}
           theme="vs-dark"
@@ -170,15 +211,28 @@ export default function CodeEditor({
         />
       </div>
 
-      {(status && status !== 'pending') && (
-        <div className="border-t border-border bg-card p-4">
+      {/* Output panel */}
+      {output && !isPending && (
+        <div className={`border-t border-border p-4 ${
+          verdict === "AC"
+            ? "bg-emerald-950/30"
+            : verdict === "WA" || verdict === "RE" || verdict === "CE"
+            ? "bg-red-950/30"
+            : verdict === "TLE"
+            ? "bg-amber-950/30"
+            : "bg-card"
+        }`}>
           <h3 className="text-sm font-semibold mb-2">Output</h3>
           <pre className="font-mono text-sm text-text-secondary whitespace-pre-wrap" data-testid="text-output">
             {output}
           </pre>
         </div>
       )}
+      {isPending && output && (
+        <div className="border-t border-border bg-card p-4">
+          <p className="text-sm text-muted-foreground animate-pulse">{output}</p>
+        </div>
+      )}
     </div>
   );
 }
-

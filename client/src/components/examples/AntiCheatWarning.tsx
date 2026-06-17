@@ -18,5 +18,5 @@ export default function AntiCheatWarningExample() {
     );
   }
 
-  return <AntiCheatWarning warningCount={2} maxWarnings={3} onDismiss={() => setShow(false)} />;
+  return <AntiCheatWarning isVisible={show} warningCount={2} maxWarnings={3} onDismiss={() => setShow(false)} />;
 }

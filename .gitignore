@@ -7,3 +7,6 @@ vite.config.ts.*
 .env
 replit.md
 .replit
+atlas-credentials.env
+sandbox/
+scratch/
